@@ -374,3 +374,4 @@ export const deleteMeeting = async (req: Request, res: Response) => {
   }
 };
 
+

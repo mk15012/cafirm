@@ -310,7 +310,10 @@ export default function DashboardPage() {
                   <Calendar className="w-4 h-4" />
                   Schedule Meeting
                 </button>
-                <div className="flex items-center gap-3">
+                <Link
+                  href="/profile"
+                  className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity rounded-lg p-2 -m-2"
+                >
                   <div className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center text-white font-semibold">
                     {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
@@ -318,7 +321,7 @@ export default function DashboardPage() {
                     <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                     <p className="text-xs text-gray-500">{user?.role}</p>
                   </div>
-                </div>
+                </Link>
                 <button
                   onClick={logout}
                   className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"

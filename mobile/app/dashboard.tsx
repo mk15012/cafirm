@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Linking, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
@@ -56,6 +56,20 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [meetingData, setMeetingData] = useState({
+    title: '',
+    date: '',
+    time: '',
+    clientId: '',
+    firmId: '',
+    location: '',
+    notes: '',
+  });
+  const [clients, setClients] = useState<Array<{ id: string; name: string; email?: string }>>([]);
+  const [firms, setFirms] = useState<Array<{ id: string; name: string; clientId: string }>>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [submittingMeeting, setSubmittingMeeting] = useState(false);
 
   useEffect(() => {
     initializeAuth();
@@ -119,6 +133,72 @@ export default function DashboardScreen() {
     loadDashboard();
   };
 
+  // Load clients and firms when meeting modal opens
+  useEffect(() => {
+    if (showMeetingModal) {
+      loadClientsAndFirms();
+    }
+  }, [showMeetingModal]);
+
+  const loadClientsAndFirms = async () => {
+    setLoadingClients(true);
+    try {
+      const [clientsRes, firmsRes] = await Promise.all([
+        api.get('/clients'),
+        api.get('/firms'),
+      ]);
+      setClients(clientsRes.data || []);
+      setFirms(firmsRes.data || []);
+    } catch (error) {
+      console.error('Failed to load clients/firms:', error);
+    } finally {
+      setLoadingClients(false);
+    }
+  };
+
+  const handleMeetingSubmit = async () => {
+    if (!meetingData.title || !meetingData.date || !meetingData.time) {
+      Alert.alert('Error', 'Title, date, and time are required');
+      return;
+    }
+
+    setSubmittingMeeting(true);
+    try {
+      const response = await api.post('/meetings', {
+        title: meetingData.title,
+        description: meetingData.notes,
+        clientId: meetingData.clientId || null,
+        firmId: meetingData.firmId || null,
+        date: meetingData.date,
+        time: meetingData.time,
+        location: meetingData.location || null,
+        notes: meetingData.notes || null,
+      });
+
+      // Open Google Calendar link
+      if (response.data.googleCalendarLink) {
+        const supported = await Linking.canOpenURL(response.data.googleCalendarLink);
+        if (supported) {
+          await Linking.openURL(response.data.googleCalendarLink);
+        }
+      }
+
+      Alert.alert('Success', 'Meeting scheduled successfully!');
+      setMeetingData({ title: '', date: '', time: '', clientId: '', firmId: '', location: '', notes: '' });
+      setShowMeetingModal(false);
+    } catch (error: any) {
+      console.error('Failed to create meeting:', error);
+      Alert.alert('Error', error.response?.data?.error || 'Failed to schedule meeting. Please try again.');
+    } finally {
+      setSubmittingMeeting(false);
+    }
+  };
+
+  // Filter firms based on selected client
+  const filteredFirms = meetingData.clientId
+    ? firms.filter((firm) => firm.clientId === meetingData.clientId)
+    : firms;
+
   const getCurrentGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -148,13 +228,20 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>CA Firm Management</Text>
-          <Text style={styles.headerSubtitle}>
-            {getCurrentGreeting()}, {user?.name}
-          </Text>
+          <TouchableOpacity onPress={() => router.push('/profile')}>
+            <Text style={styles.headerSubtitle}>
+              {getCurrentGreeting()}, {user?.name}
+            </Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={logout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity onPress={() => setShowMeetingModal(true)} style={styles.scheduleButton}>
+            <Text style={styles.scheduleButtonText}>Meeting</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={logout} style={styles.logoutButton}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Welcome Banner */}
@@ -266,6 +353,136 @@ export default function DashboardScreen() {
           ))}
         </View>
       )}
+
+      {/* Schedule Meeting Modal */}
+      <Modal
+        visible={showMeetingModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowMeetingModal(false)}
+      >
+        <View style={styles.modal}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Schedule Meeting</Text>
+            
+            <TextInput
+              style={styles.input}
+              placeholder="Meeting Title *"
+              value={meetingData.title}
+              onChangeText={(text) => setMeetingData({ ...meetingData, title: text })}
+            />
+
+            <Text style={styles.label}>Client (Optional)</Text>
+            <ScrollView style={styles.picker} horizontal showsHorizontalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[styles.pickerOption, !meetingData.clientId && styles.pickerOptionSelected]}
+                onPress={() => setMeetingData({ ...meetingData, clientId: '', firmId: '' })}
+              >
+                <Text style={!meetingData.clientId ? styles.pickerOptionTextSelected : styles.pickerOptionText}>
+                  None
+                </Text>
+              </TouchableOpacity>
+              {clients.map((client) => (
+                <TouchableOpacity
+                  key={client.id}
+                  style={[styles.pickerOption, meetingData.clientId === client.id && styles.pickerOptionSelected]}
+                  onPress={() => setMeetingData({ ...meetingData, clientId: client.id, firmId: '' })}
+                >
+                  <Text style={meetingData.clientId === client.id ? styles.pickerOptionTextSelected : styles.pickerOptionText}>
+                    {client.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {meetingData.clientId && (
+              <>
+                <Text style={styles.label}>Firm (Optional)</Text>
+                <ScrollView style={styles.picker} horizontal showsHorizontalScrollIndicator={false}>
+                  <TouchableOpacity
+                    style={[styles.pickerOption, !meetingData.firmId && styles.pickerOptionSelected]}
+                    onPress={() => setMeetingData({ ...meetingData, firmId: '' })}
+                  >
+                    <Text style={!meetingData.firmId ? styles.pickerOptionTextSelected : styles.pickerOptionText}>
+                      None
+                    </Text>
+                  </TouchableOpacity>
+                  {filteredFirms.map((firm) => (
+                    <TouchableOpacity
+                      key={firm.id}
+                      style={[styles.pickerOption, meetingData.firmId === firm.id && styles.pickerOptionSelected]}
+                      onPress={() => setMeetingData({ ...meetingData, firmId: firm.id })}
+                    >
+                      <Text style={meetingData.firmId === firm.id ? styles.pickerOptionTextSelected : styles.pickerOptionText}>
+                        {firm.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            <View style={styles.dateTimeRow}>
+              <View style={styles.dateTimeItem}>
+                <Text style={styles.label}>Date *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="YYYY-MM-DD"
+                  value={meetingData.date}
+                  onChangeText={(text) => setMeetingData({ ...meetingData, date: text })}
+                />
+              </View>
+              <View style={styles.dateTimeItem}>
+                <Text style={styles.label}>Time *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="HH:MM"
+                  value={meetingData.time}
+                  onChangeText={(text) => setMeetingData({ ...meetingData, time: text })}
+                />
+              </View>
+            </View>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Location (Optional)"
+              value={meetingData.location}
+              onChangeText={(text) => setMeetingData({ ...meetingData, location: text })}
+            />
+
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Notes / Agenda"
+              value={meetingData.notes}
+              onChangeText={(text) => setMeetingData({ ...meetingData, notes: text })}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.submitModalButton, submittingMeeting && styles.submitModalButtonDisabled]}
+                onPress={handleMeetingSubmit}
+                disabled={submittingMeeting}
+              >
+                <Text style={styles.modalButtonText}>
+                  {submittingMeeting ? 'Scheduling...' : 'Schedule Meeting'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelModalButton]}
+                onPress={() => {
+                  setShowMeetingModal(false);
+                  setMeetingData({ title: '', date: '', time: '', clientId: '', firmId: '', location: '', notes: '' });
+                }}
+                disabled={submittingMeeting}
+              >
+                <Text style={[styles.modalButtonText, { color: '#6b7280' }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -398,6 +615,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     marginTop: 4,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  scheduleButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#0284c7',
+    borderRadius: 6,
+  },
+  scheduleButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   logoutButton: {
     paddingHorizontal: 12,
@@ -590,6 +823,104 @@ const styles = StyleSheet.create({
   urgentText: {
     fontSize: 12,
     color: '#ef4444',
+    fontWeight: '600',
+  },
+  modal: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 12,
+    width: '90%',
+    maxHeight: '90%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    fontSize: 16,
+    color: '#111827',
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  picker: {
+    marginBottom: 16,
+  },
+  pickerOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    marginRight: 8,
+    backgroundColor: 'white',
+  },
+  pickerOptionSelected: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0284c7',
+  },
+  pickerOptionText: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  pickerOptionTextSelected: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  dateTimeItem: {
+    flex: 1,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitModalButton: {
+    backgroundColor: '#0284c7',
+  },
+  submitModalButtonDisabled: {
+    opacity: 0.5,
+  },
+  cancelModalButton: {
+    backgroundColor: '#e5e5e5',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
     fontWeight: '600',
   },
 });
