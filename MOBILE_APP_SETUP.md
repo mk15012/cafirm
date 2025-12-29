@@ -174,3 +174,7 @@ npx expo prebuild
 - Expo makes development easy but you can also "eject" to native code if needed later
 - For production deployment, use EAS Build or build locally with native tools
 
+
+
+
+

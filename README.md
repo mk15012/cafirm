@@ -60,15 +60,51 @@ npm run dev:web
 npm run dev:mobile
 ```
 
+## 🔐 Authentication & Login
+
+### New Feature: Signup
+**New CAs can now create their own accounts!**
+- Go to http://localhost:3000/auth/signup
+- Fill in your details and create your account
+- You'll be automatically logged in
+
+### Creating First User
+
+**Option 1: Use Signup (Recommended)**
+1. Start backend: `cd backend && npm run dev`
+2. Start web app: `cd web && npm run dev`
+3. Visit http://localhost:3000/auth/signup
+4. Create your CA account
+
+**Option 2: Create via Script**
+```bash
+cd backend
+node scripts/create-first-user.js "Your Name" "your@email.com" "yourpassword"
+```
+
+**Option 3: Seed Test Data**
+```bash
+cd backend
+npm run seed
+```
+This creates test users with sample data:
+- CA: ramesh@cafirm.com / password123
+- Manager: priya@cafirm.com / password123
+- Staff: raj@cafirm.com / password123
+
+### Login
+Visit http://localhost:3000/auth/login and use your credentials.
+
+See [QUICK_START.md](./QUICK_START.md) for detailed login instructions.
+
 ## 📚 Documentation
 
+- [Quick Start Guide](./QUICK_START.md) - How to login and get started
+- [Setup Guide](./SETUP.md) - Detailed setup instructions
+- [Test Credentials](./TEST_CREDENTIALS.md) - Test user information
+- [Create First User](./CREATE_FIRST_USER.md) - Manual user creation
 - [Tech Stack Guide](./TECH_STACK_GUIDE.md)
 - [Requirements](./REQUIREMENTS.md)
-- [UI Analysis](./UI_ANALYSIS.md)
-
-## 🔐 Default Credentials
-
-After initial setup, create your first CA user through the API or seed script.
 
 ## 📝 License
 
