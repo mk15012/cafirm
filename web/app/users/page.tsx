@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
-import Link from 'next/link';
+import AppLayout from '@/components/layout/AppLayout';
+import { User, Plus, X, Mail, Phone, Shield, UserCheck, Edit, Trash2, Users as UsersIcon } from 'lucide-react';
 
-interface User {
+interface UserData {
   id: string;
   name: string;
   email: string;
@@ -18,11 +19,11 @@ interface User {
 
 export default function UsersPage() {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
-  const [users, setUsers] = useState<User[]>([]);
+  const { isAuthenticated, isLoading, user, initializeAuth } = useAuthStore();
+  const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -33,19 +34,26 @@ export default function UsersPage() {
   });
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/auth/login');
-      return;
+    initializeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        router.push('/auth/login');
+        return;
+      }
+      if (user?.role !== 'CA') {
+        router.push('/dashboard');
+        return;
+      }
+      loadUsers();
     }
-    if (user?.role !== 'CA') {
-      router.push('/dashboard');
-      return;
-    }
-    loadUsers();
-  }, [isAuthenticated, user, router]);
+  }, [isAuthenticated, isLoading, user, router]);
 
   const loadUsers = async () => {
     try {
+      setLoading(true);
       const response = await api.get('/users');
       setUsers(response.data);
     } catch (error) {
@@ -73,21 +81,21 @@ export default function UsersPage() {
     }
   };
 
-  const handleEdit = (user: User) => {
-    setEditingUser(user);
+  const handleEdit = (userData: UserData) => {
+    setEditingUser(userData);
     setFormData({
-      name: user.name,
-      email: user.email,
+      name: userData.name,
+      email: userData.email,
       password: '',
-      phone: user.phone || '',
-      role: user.role,
-      reportsToId: user.reportsTo?.id || '',
+      phone: userData.phone || '',
+      role: userData.role,
+      reportsToId: userData.reportsTo?.id || '',
     });
     setShowForm(true);
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
     try {
       await api.delete(`/users/${id}`);
       loadUsers();
@@ -96,186 +104,296 @@ export default function UsersPage() {
     }
   };
 
-  if (!isAuthenticated || user?.role !== 'CA' || loading) {
-    return <div className="p-8">Loading...</div>;
+  const getRoleColor = (role: string) => {
+    const colors: Record<string, string> = {
+      CA: 'bg-purple-100 text-purple-800 border-purple-200',
+      MANAGER: 'bg-blue-100 text-blue-800 border-blue-200',
+      STAFF: 'bg-gray-100 text-gray-800 border-gray-200',
+    };
+    return colors[role] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  if (isLoading || loading) {
+    return (
+      <AppLayout title="Users">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <h1 className="text-2xl font-bold">Loading users...</h1>
+          </div>
+        </div>
+      </AppLayout>
+    );
   }
 
+  if (!isAuthenticated || user?.role !== 'CA') {
+    return null;
+  }
+
+  const stats = {
+    total: users.length,
+    active: users.filter(u => u.status === 'ACTIVE').length,
+    ca: users.filter(u => u.role === 'CA').length,
+    managers: users.filter(u => u.role === 'MANAGER').length,
+    staff: users.filter(u => u.role === 'STAFF').length,
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <Link href="/dashboard" className="text-primary-600 hover:text-primary-700">
-            ← Back to Dashboard
-          </Link>
-          <h1 className="text-2xl font-bold">Users</h1>
+    <AppLayout title="Users">
+      {/* Header */}
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
+            <UsersIcon className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Users</h1>
+            <p className="text-sm text-gray-500">Manage system users and permissions</p>
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            setEditingUser(null);
+            setFormData({ name: '', email: '', password: '', phone: '', role: 'STAFF', reportsToId: '' });
+            setShowForm(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+        >
+          <Plus className="w-4 h-4" />
+          Add User
+        </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4">
+          <p className="text-sm font-medium text-gray-600 mb-1">Total Users</p>
+          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4">
+          <p className="text-sm font-medium text-gray-600 mb-1">Active</p>
+          <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4">
+          <p className="text-sm font-medium text-gray-600 mb-1">CA</p>
+          <p className="text-2xl font-bold text-purple-600">{stats.ca}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4">
+          <p className="text-sm font-medium text-gray-600 mb-1">Managers</p>
+          <p className="text-2xl font-bold text-blue-600">{stats.managers}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4">
+          <p className="text-sm font-medium text-gray-600 mb-1">Staff</p>
+          <p className="text-2xl font-bold text-gray-600">{stats.staff}</p>
+        </div>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900">
+              {editingUser ? 'Edit User' : 'Add New User'}
+            </h2>
+            <button
+              onClick={() => {
+                setShowForm(false);
+                setEditingUser(null);
+                setFormData({ name: '', email: '', password: '', phone: '', role: 'STAFF', reportsToId: '' });
+              }}
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Full name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="email@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password {!editingUser && '*'}
+                </label>
+                <input
+                  type="password"
+                  required={!editingUser}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder={editingUser ? 'Leave blank to keep current' : 'Password'}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="+91 1234567890"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+                <select
+                  required
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="STAFF">Staff</option>
+                  <option value="MANAGER">Manager</option>
+                  <option value="CA">CA</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reports To</label>
+                <select
+                  value={formData.reportsToId}
+                  onChange={(e) => setFormData({ ...formData, reportsToId: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">None</option>
+                  {users
+                    .filter((u) => u.id !== editingUser?.id && (u.role === 'CA' || u.role === 'MANAGER'))
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.role})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+              >
+                {editingUser ? 'Update User' : 'Create User'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingUser(null);
+                  setFormData({ name: '', email: '', password: '', phone: '', role: 'STAFF', reportsToId: '' });
+                }}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Users Grid */}
+      {users.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-12 text-center">
+          <UsersIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No users found</h3>
+          <p className="text-sm text-gray-500 mb-4">Get started by adding your first user</p>
           <button
             onClick={() => {
               setEditingUser(null);
               setFormData({ name: '', email: '', password: '', phone: '', role: 'STAFF', reportsToId: '' });
               setShowForm(true);
             }}
-            className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
-            + Add User
+            <Plus className="w-4 h-4" />
+            Add User
           </button>
         </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {showForm && (
-          <div className="mb-6 bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">
-              {editingUser ? 'Edit User' : 'Add New User'}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border rounded"
-                  />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {users.map((userData) => (
+            <div
+              key={userData.id}
+              className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-primary-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                    {userData.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-900">{userData.name}</h3>
+                    <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${getRoleColor(userData.role)}`}>
+                      {userData.role}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 border rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Password {!editingUser && '*'}
-                  </label>
-                  <input
-                    type="password"
-                    required={!editingUser}
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-3 py-2 border rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Phone</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-2 border rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Role *</label>
-                  <select
-                    required
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full px-3 py-2 border rounded"
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(userData)}
+                    className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                    title="Edit"
                   >
-                    <option value="STAFF">Staff</option>
-                    <option value="MANAGER">Manager</option>
-                    <option value="CA">CA</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Reports To</label>
-                  <select
-                    value={formData.reportsToId}
-                    onChange={(e) => setFormData({ ...formData, reportsToId: e.target.value })}
-                    className="w-full px-3 py-2 border rounded"
-                  >
-                    <option value="">None</option>
-                    {users
-                      .filter((u) => u.id !== editingUser?.id && (u.role === 'CA' || u.role === 'MANAGER'))
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.role})
-                        </option>
-                      ))}
-                  </select>
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  {userData.id !== user?.id && (
+                    <button
+                      onClick={() => handleDelete(userData.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
-                >
-                  {editingUser ? 'Update' : 'Create'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingUser(null);
-                  }}
-                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reports To</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium">{u.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{u.email}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{u.phone || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                      {u.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{u.reportsTo?.name || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded ${
-                      u.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {u.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleEdit(u)}
-                      className="text-primary-600 hover:text-primary-900 mr-3"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(u.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Mail className="w-4 h-4 text-gray-400" />
+                  <span className="truncate">{userData.email}</span>
+                </div>
+                {userData.phone && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Phone className="w-4 h-4 text-gray-400" />
+                    <span>{userData.phone}</span>
+                  </div>
+                )}
+                {userData.reportsTo && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <UserCheck className="w-4 h-4 text-gray-400" />
+                    <span>Reports to: {userData.reportsTo.name}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                  userData.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {userData.status}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
-      </main>
-    </div>
+      )}
+    </AppLayout>
   );
 }
-

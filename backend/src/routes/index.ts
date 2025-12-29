@@ -7,6 +7,7 @@ import tasksRoutes from './tasks.routes';
 import invoicesRoutes from './invoices.routes';
 import documentsRoutes from './documents.routes';
 import approvalsRoutes from './approvals.routes';
+import meetingsRoutes from './meetings.routes';
 import usersRoutes from './users.routes';
 import activityLogsRoutes from './activityLogs.routes';
 
@@ -20,6 +21,7 @@ router.use('/tasks', tasksRoutes);
 router.use('/invoices', invoicesRoutes);
 router.use('/documents', documentsRoutes);
 router.use('/approvals', approvalsRoutes);
+router.use('/meetings', meetingsRoutes);
 router.use('/users', usersRoutes);
 router.use('/activity-logs', activityLogsRoutes);
 

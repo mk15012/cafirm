@@ -13,45 +13,60 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User, token: string) => Promise<void>;
-  loadStoredAuth: () => Promise<void>;
+  initializeAuth: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
   isAuthenticated: false,
+  isLoading: true,
   
   login: async (email: string, password: string) => {
     const response = await api.post('/auth/login', { email, password });
     const { token, user } = response.data;
     await AsyncStorage.setItem('token', token);
-    set({ user, token, isAuthenticated: true });
+    await AsyncStorage.setItem('user', JSON.stringify(user));
+    set({ user, token, isAuthenticated: true, isLoading: false });
   },
   
   logout: async () => {
     await AsyncStorage.removeItem('token');
-    set({ user: null, token: null, isAuthenticated: false });
+    await AsyncStorage.removeItem('user');
+    set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
   
   setUser: async (user: User, token: string) => {
     await AsyncStorage.setItem('token', token);
-    set({ user, token, isAuthenticated: true });
+    await AsyncStorage.setItem('user', JSON.stringify(user));
+    set({ user, token, isAuthenticated: true, isLoading: false });
   },
 
-  loadStoredAuth: async () => {
+  initializeAuth: async () => {
     const token = await AsyncStorage.getItem('token');
-    if (token) {
+    const userStr = await AsyncStorage.getItem('user');
+    
+    if (token && userStr) {
       try {
         const response = await api.get('/auth/me');
-        set({ user: response.data, token, isAuthenticated: true });
-      } catch (error) {
+        if (response.data) {
+          const userData = response.data;
+          set({ user: userData, token, isAuthenticated: true, isLoading: false });
+        } else {
+          throw new Error('Token invalid');
+        }
+      } catch (error: any) {
+        console.error('Auth initialization failed:', error.response?.data || error.message);
         await AsyncStorage.removeItem('token');
-        set({ user: null, token: null, isAuthenticated: false });
+        await AsyncStorage.removeItem('user');
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       }
+    } else {
+      set({ isLoading: false });
     }
   },
 }));
-

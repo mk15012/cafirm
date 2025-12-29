@@ -82,6 +82,7 @@ model User {
   approvedApprovals Approval[]       @relation("ApprovalApprover")
   uploadedDocuments Document[]
   createdInvoices   Invoice[]        @relation("InvoiceCreator")
+  createdMeetings   Meeting[]       @relation("MeetingCreator")
   activityLogs      ActivityLog[]
   firmAssignments   UserFirmMapping[] @relation("UserFirmMapping")
   firmAssignmentsCreated UserFirmMapping[] @relation("FirmAssignment")
@@ -105,6 +106,7 @@ model Client {
 
   // Relations
   firms Firm[]
+  meetings Meeting[]
 
   @@index([createdById])
 }
@@ -128,6 +130,7 @@ model Firm {
   tasks     Task[]
   documents Document[]
   invoices  Invoice[]
+  meetings  Meeting[]
   userAssignments UserFirmMapping[]
 
   @@index([clientId])
@@ -254,5 +257,29 @@ model ActivityLog {
   @@index([userId])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+model Meeting {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  firmId      String?
+  firm        Firm?    @relation(fields: [firmId], references: [id], onDelete: SetNull)
+  meetingDate DateTime
+  meetingTime String   // Time in HH:MM format
+  location    String?
+  notes       String?
+  googleCalendarLink String?
+  createdById String
+  createdBy   User     @relation("MeetingCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([firmId])
+  @@index([createdById])
+  @@index([meetingDate])
 }
 

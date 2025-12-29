@@ -3,10 +3,10 @@ import { useEffect } from 'react';
 import { useAuthStore } from '@/lib/store';
 
 export default function RootLayout() {
-  const { loadStoredAuth } = useAuthStore();
+  const { initializeAuth } = useAuthStore();
 
   useEffect(() => {
-    loadStoredAuth();
+    initializeAuth();
   }, []);
 
   return (
@@ -23,4 +23,3 @@ export default function RootLayout() {
     </Stack>
   );
 }
-
