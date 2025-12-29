@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
+import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
 
 export async function getInvoices(req: Request, res: Response) {
   try {
@@ -9,11 +10,24 @@ export async function getInvoices(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     let accessibleFirmIds: string[] = [];
     
     if (user.role === 'CA') {
-      const allFirms = await prisma.firm.findMany({ select: { id: true } });
-      accessibleFirmIds = allFirms.map(f => f.id);
+      // CA sees all firms created by anyone in their organization
+      const orgFirms = await prisma.firm.findMany({
+        where: { createdById: { in: orgUserIds } },
+        select: { id: true },
+      });
+      accessibleFirmIds = orgFirms.map(f => f.id);
     } else if (user.role === 'MANAGER') {
       const teamUserIds = await getTeamUserIds(user.userId);
       const mappings = await prisma.userFirmMapping.findMany({
@@ -22,12 +36,21 @@ export async function getInvoices(req: Request, res: Response) {
       });
       accessibleFirmIds = [...new Set(mappings.map(m => m.firmId))];
     } else {
+      // Staff only see firms they're assigned to
       const mappings = await prisma.userFirmMapping.findMany({
         where: { userId: user.userId },
         select: { firmId: true },
       });
       accessibleFirmIds = mappings.map(m => m.firmId);
     }
+
+    // Filter to only firms in the organization
+    const orgFirms = await prisma.firm.findMany({
+      where: { createdById: { in: orgUserIds } },
+      select: { id: true },
+    });
+    const orgFirmIds = new Set(orgFirms.map(f => f.id));
+    accessibleFirmIds = accessibleFirmIds.filter(id => orgFirmIds.has(id));
 
     const { status, firmId } = req.query;
 
@@ -62,7 +85,22 @@ export async function getInvoices(req: Request, res: Response) {
 
 export async function getInvoice(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const invoice = await prisma.invoice.findUnique({
       where: { id },
       include: {
@@ -84,6 +122,16 @@ export async function getInvoice(req: Request, res: Response) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
+    // Verify invoice's firm belongs to this CA's organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: invoice.firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm || !orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Invoice does not belong to your organization' });
+    }
+
     res.json(invoice);
   } catch (error) {
     console.error('Get invoice error:', error);
@@ -102,6 +150,29 @@ export async function createInvoice(req: Request, res: Response) {
 
     if (!firmId || !amount || !dueDate) {
       return res.status(400).json({ error: 'Firm ID, amount, and due date are required' });
+    }
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify firm belongs to this CA's organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm) {
+      return res.status(404).json({ error: 'Firm not found' });
+    }
+
+    if (!orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Firm does not belong to your organization' });
     }
 
     // Generate invoice number
@@ -146,8 +217,40 @@ export async function createInvoice(req: Request, res: Response) {
 
 export async function updateInvoice(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     const { amount, taxAmount, totalAmount, dueDate, status } = req.body;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify invoice belongs to this CA's organization
+    const existingInvoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        firm: {
+          select: { createdById: true },
+        },
+      },
+    });
+
+    if (!existingInvoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (!orgUserIds.includes(existingInvoice.firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Invoice does not belong to your organization' });
+    }
 
     const updateData: any = {};
     if (amount !== undefined) updateData.amount = amount;
@@ -191,8 +294,40 @@ export async function updateInvoice(req: Request, res: Response) {
 
 export async function payInvoice(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     const { paymentReference } = req.body;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify invoice belongs to this CA's organization
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        firm: {
+          select: { createdById: true },
+        },
+      },
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (!orgUserIds.includes(invoice.firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Invoice does not belong to your organization' });
+    }
 
     const invoice = await prisma.invoice.update({
       where: { id },

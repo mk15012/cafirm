@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
 import { TaskStatus } from '@prisma/client';
+import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
 
 export async function getTasks(req: Request, res: Response) {
   try {
@@ -10,12 +11,25 @@ export async function getTasks(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     // Get accessible firm IDs
     let accessibleFirmIds: string[] = [];
     
     if (user.role === 'CA') {
-      const allFirms = await prisma.firm.findMany({ select: { id: true } });
-      accessibleFirmIds = allFirms.map(f => f.id);
+      // CA sees all firms created by anyone in their organization
+      const orgFirms = await prisma.firm.findMany({
+        where: { createdById: { in: orgUserIds } },
+        select: { id: true },
+      });
+      accessibleFirmIds = orgFirms.map(f => f.id);
     } else if (user.role === 'MANAGER') {
       const teamUserIds = await getTeamUserIds(user.userId);
       const mappings = await prisma.userFirmMapping.findMany({
@@ -24,12 +38,21 @@ export async function getTasks(req: Request, res: Response) {
       });
       accessibleFirmIds = [...new Set(mappings.map(m => m.firmId))];
     } else {
+      // Staff only see firms they're assigned to
       const mappings = await prisma.userFirmMapping.findMany({
         where: { userId: user.userId },
         select: { firmId: true },
       });
       accessibleFirmIds = mappings.map(m => m.firmId);
     }
+
+    // Additional security: filter to only firms in the organization
+    const orgFirms = await prisma.firm.findMany({
+      where: { createdById: { in: orgUserIds } },
+      select: { id: true },
+    });
+    const orgFirmIds = new Set(orgFirms.map(f => f.id));
+    accessibleFirmIds = accessibleFirmIds.filter(id => orgFirmIds.has(id));
 
     const { status, firmId, assignedToId } = req.query;
 
@@ -72,7 +95,22 @@ export async function getTasks(req: Request, res: Response) {
 
 export async function getTask(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const task = await prisma.task.findUnique({
       where: { id },
       include: {
@@ -97,6 +135,16 @@ export async function getTask(req: Request, res: Response) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
+    // Verify task's firm belongs to this CA's organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: task.firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm || !orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Task does not belong to your organization' });
+    }
+
     res.json(task);
   } catch (error) {
     console.error('Get task error:', error);
@@ -115,6 +163,34 @@ export async function createTask(req: Request, res: Response) {
 
     if (!firmId || !title || !assignedToId || !dueDate) {
       return res.status(400).json({ error: 'Firm ID, title, assigned to, and due date are required' });
+    }
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify firm belongs to this CA's organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm) {
+      return res.status(404).json({ error: 'Firm not found' });
+    }
+
+    if (!orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Firm does not belong to your organization' });
+    }
+
+    // Verify assigned user belongs to this CA's organization
+    if (!orgUserIds.includes(assignedToId)) {
+      return res.status(403).json({ error: 'Access denied: Cannot assign task to user outside your organization' });
     }
 
     const task = await prisma.task.create({
@@ -152,8 +228,45 @@ export async function createTask(req: Request, res: Response) {
 
 export async function updateTask(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     const { title, description, assignedToId, priority, dueDate, status } = req.body;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify task belongs to this CA's organization
+    const existingTask = await prisma.task.findUnique({
+      where: { id },
+      include: {
+        firm: {
+          select: { createdById: true },
+        },
+      },
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    if (!orgUserIds.includes(existingTask.firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Task does not belong to your organization' });
+    }
+
+    // If reassigning, verify new assignee belongs to organization
+    if (assignedToId && !orgUserIds.includes(assignedToId)) {
+      return res.status(403).json({ error: 'Access denied: Cannot assign task to user outside your organization' });
+    }
 
     const updateData: any = {};
     if (title) updateData.title = title;
@@ -205,7 +318,40 @@ export async function updateTask(req: Request, res: Response) {
 
 export async function deleteTask(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify task belongs to this CA's organization
+    const task = await prisma.task.findUnique({
+      where: { id },
+      include: {
+        firm: {
+          select: { createdById: true },
+        },
+      },
+    });
+
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    if (!orgUserIds.includes(task.firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Task does not belong to your organization' });
+    }
+
     await prisma.task.delete({
       where: { id },
     });

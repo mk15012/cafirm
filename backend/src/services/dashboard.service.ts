@@ -8,13 +8,25 @@ export async function getDashboardMetrics(userId: string, userRole: UserRole): P
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
+  // Get the root CA ID for this user's organization
+  const caId = await getRootCAId(userId);
+  if (!caId) {
+    throw new Error('Unable to determine organization');
+  }
+
+  // Get all user IDs in this CA's organization
+  const orgUserIds = await getCAOrganizationUserIds(caId);
+
   // Get accessible firm IDs based on role
   let accessibleFirmIds: string[] = [];
   
   if (userRole === 'CA') {
-    // CA can see all firms
-    const allFirms = await prisma.firm.findMany({ select: { id: true } });
-    accessibleFirmIds = allFirms.map(f => f.id);
+    // CA sees all firms created by anyone in their organization
+    const orgFirms = await prisma.firm.findMany({
+      where: { createdById: { in: orgUserIds } },
+      select: { id: true },
+    });
+    accessibleFirmIds = orgFirms.map(f => f.id);
   } else if (userRole === 'MANAGER') {
     // Manager can see firms assigned to them and their team
     const teamUserIds = await getTeamUserIds(userId);
@@ -31,6 +43,14 @@ export async function getDashboardMetrics(userId: string, userRole: UserRole): P
     });
     accessibleFirmIds = mappings.map(m => m.firmId);
   }
+
+  // Filter to only firms in the organization
+  const orgFirms = await prisma.firm.findMany({
+    where: { createdById: { in: orgUserIds } },
+    select: { id: true },
+  });
+  const orgFirmIds = new Set(orgFirms.map(f => f.id));
+  accessibleFirmIds = accessibleFirmIds.filter(id => orgFirmIds.has(id));
 
   // Active Tasks
   const activeTasks = await prisma.task.count({
@@ -98,9 +118,10 @@ export async function getDashboardMetrics(userId: string, userRole: UserRole): P
 
   const documentsChange = documents - documentsLastMonth;
 
-  // Active Clients
+  // Active Clients (only clients created by organization)
   const activeClients = await prisma.client.count({
     where: {
+      createdById: { in: orgUserIds },
       firms: {
         some: {
           id: { in: accessibleFirmIds },
@@ -111,6 +132,7 @@ export async function getDashboardMetrics(userId: string, userRole: UserRole): P
 
   const activeClientsLastMonth = await prisma.client.count({
     where: {
+      createdById: { in: orgUserIds },
       firms: {
         some: {
           id: { in: accessibleFirmIds },
@@ -126,7 +148,7 @@ export async function getDashboardMetrics(userId: string, userRole: UserRole): P
   const firmsManaged = accessibleFirmIds.length;
 
   const firmsManagedLastMonth = userRole === 'CA'
-    ? await prisma.firm.count({ where: { createdAt: { lte: endOfLastMonth } } })
+    ? await prisma.firm.count({ where: { createdById: { in: orgUserIds }, createdAt: { lte: endOfLastMonth } } })
     : await prisma.userFirmMapping.count({
         where: {
           userId: userRole === 'MANAGER' ? { in: await getTeamUserIds(userId) } : userId,

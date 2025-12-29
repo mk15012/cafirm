@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
+import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
 import path from 'path';
 import fs from 'fs';
 
@@ -11,11 +12,24 @@ export async function getDocuments(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     let accessibleFirmIds: string[] = [];
     
     if (user.role === 'CA') {
-      const allFirms = await prisma.firm.findMany({ select: { id: true } });
-      accessibleFirmIds = allFirms.map(f => f.id);
+      // CA sees all firms created by anyone in their organization
+      const orgFirms = await prisma.firm.findMany({
+        where: { createdById: { in: orgUserIds } },
+        select: { id: true },
+      });
+      accessibleFirmIds = orgFirms.map(f => f.id);
     } else if (user.role === 'MANAGER') {
       const teamUserIds = await getTeamUserIds(user.userId);
       const mappings = await prisma.userFirmMapping.findMany({
@@ -24,12 +38,21 @@ export async function getDocuments(req: Request, res: Response) {
       });
       accessibleFirmIds = [...new Set(mappings.map(m => m.firmId))];
     } else {
+      // Staff only see firms they're assigned to
       const mappings = await prisma.userFirmMapping.findMany({
         where: { userId: user.userId },
         select: { firmId: true },
       });
       accessibleFirmIds = mappings.map(m => m.firmId);
     }
+
+    // Filter to only firms in the organization
+    const orgFirms = await prisma.firm.findMany({
+      where: { createdById: { in: orgUserIds } },
+      select: { id: true },
+    });
+    const orgFirmIds = new Set(orgFirms.map(f => f.id));
+    accessibleFirmIds = accessibleFirmIds.filter(id => orgFirmIds.has(id));
 
     const { firmId, taskId, documentType } = req.query;
 
@@ -72,7 +95,22 @@ export async function getDocuments(req: Request, res: Response) {
 
 export async function getDocument(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const document = await prisma.document.findUnique({
       where: { id },
       include: {
@@ -94,6 +132,16 @@ export async function getDocument(req: Request, res: Response) {
 
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Verify document's firm belongs to this CA's organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: document.firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm || !orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Document does not belong to your organization' });
     }
 
     res.json(document);
@@ -118,6 +166,40 @@ export async function uploadDocument(req: Request, res: Response) {
 
     if (!firmId || !documentType) {
       return res.status(400).json({ error: 'Firm ID and document type are required' });
+    }
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify firm belongs to this CA's organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm) {
+      return res.status(404).json({ error: 'Firm not found' });
+    }
+
+    if (!orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Firm does not belong to your organization' });
+    }
+
+    // If taskId provided, verify task belongs to organization
+    if (taskId) {
+      const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        include: { firm: { select: { createdById: true } } },
+      });
+      if (!task || !orgUserIds.includes(task.firm.createdById)) {
+        return res.status(403).json({ error: 'Access denied: Task does not belong to your organization' });
+      }
     }
 
     const document = await prisma.document.create({
@@ -149,13 +231,38 @@ export async function uploadDocument(req: Request, res: Response) {
 
 export async function downloadDocument(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const document = await prisma.document.findUnique({
       where: { id },
     });
 
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Verify document's firm belongs to this CA's organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: document.firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm || !orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Document does not belong to your organization' });
     }
 
     const filePath = path.join(process.cwd(), document.filePath);
@@ -173,13 +280,38 @@ export async function downloadDocument(req: Request, res: Response) {
 
 export async function deleteDocument(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const document = await prisma.document.findUnique({
       where: { id },
     });
 
     if (!document) {
       return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Verify document's firm belongs to this CA's organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: document.firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm || !orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Document does not belong to your organization' });
     }
 
     // Delete file from filesystem

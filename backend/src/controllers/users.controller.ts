@@ -2,10 +2,28 @@ import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { hashPassword } from '../utils/bcrypt';
 import { AuthRequest } from '../types';
+import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
 
 export async function getUsers(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const users = await prisma.user.findMany({
+      where: {
+        id: { in: orgUserIds }, // Only users in this CA's organization
+      },
       select: {
         id: true,
         name: true,
@@ -34,7 +52,27 @@ export async function getUsers(req: Request, res: Response) {
 
 export async function getUser(req: Request, res: Response) {
   try {
+    const requestingUser = (req as AuthRequest).user;
+    if (!requestingUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for the requesting user's organization
+    const caId = await getRootCAId(requestingUser.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify the requested user belongs to the same organization
+    if (!orgUserIds.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: User does not belong to your organization' });
+    }
+
     const user = await prisma.user.findUnique({
       where: { id },
       select: {
@@ -77,10 +115,29 @@ export async function getUser(req: Request, res: Response) {
 
 export async function createUser(req: Request, res: Response) {
   try {
+    const requestingUser = (req as AuthRequest).user;
+    if (!requestingUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { name, email, password, phone, role, reportsToId } = req.body;
 
     if (!name || !email || !password || !role) {
       return res.status(400).json({ error: 'Name, email, password, and role are required' });
+    }
+
+    // Get the root CA ID for the requesting user's organization
+    const caId = await getRootCAId(requestingUser.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // If reportsToId is provided, verify they belong to the same organization
+    if (reportsToId && !orgUserIds.includes(reportsToId)) {
+      return res.status(403).json({ error: 'Access denied: Cannot assign reports to user outside your organization' });
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -100,7 +157,7 @@ export async function createUser(req: Request, res: Response) {
         password: hashedPassword,
         phone,
         role,
-        reportsToId,
+        reportsToId: reportsToId || caId, // Default to CA if no reportsToId provided
       },
       select: {
         id: true,
@@ -121,8 +178,32 @@ export async function createUser(req: Request, res: Response) {
 
 export async function updateUser(req: Request, res: Response) {
   try {
+    const requestingUser = (req as AuthRequest).user;
+    if (!requestingUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     const { name, email, phone, role, reportsToId, status } = req.body;
+
+    // Get the root CA ID for the requesting user's organization
+    const caId = await getRootCAId(requestingUser.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify the user being updated belongs to the same organization
+    if (!orgUserIds.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: User does not belong to your organization' });
+    }
+
+    // If reportsToId is being updated, verify they belong to the same organization
+    if (reportsToId !== undefined && reportsToId && !orgUserIds.includes(reportsToId)) {
+      return res.status(403).json({ error: 'Access denied: Cannot assign reports to user outside your organization' });
+    }
 
     const updateData: any = {};
     if (name) updateData.name = name;
@@ -154,7 +235,32 @@ export async function updateUser(req: Request, res: Response) {
 
 export async function deleteUser(req: Request, res: Response) {
   try {
+    const requestingUser = (req as AuthRequest).user;
+    if (!requestingUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for the requesting user's organization
+    const caId = await getRootCAId(requestingUser.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify the user being deleted belongs to the same organization
+    if (!orgUserIds.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: User does not belong to your organization' });
+    }
+
+    // Prevent CA from deleting themselves
+    if (id === caId) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
     await prisma.user.delete({
       where: { id },
     });
@@ -178,6 +284,34 @@ export async function assignFirm(req: Request, res: Response) {
 
     if (!firmId) {
       return res.status(400).json({ error: 'Firm ID is required' });
+    }
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify the user being assigned belongs to the same organization
+    if (!orgUserIds.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: User does not belong to your organization' });
+    }
+
+    // Verify the firm belongs to the same organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm) {
+      return res.status(404).json({ error: 'Firm not found' });
+    }
+
+    if (!orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Firm does not belong to your organization' });
     }
 
     const mapping = await prisma.userFirmMapping.create({
@@ -207,7 +341,40 @@ export async function assignFirm(req: Request, res: Response) {
 
 export async function unassignFirm(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id, firmId } = req.params;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify the user belongs to the same organization
+    if (!orgUserIds.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: User does not belong to your organization' });
+    }
+
+    // Verify the firm belongs to the same organization
+    const firm = await prisma.firm.findUnique({
+      where: { id: firmId },
+      select: { createdById: true },
+    });
+
+    if (!firm) {
+      return res.status(404).json({ error: 'Firm not found' });
+    }
+
+    if (!orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Firm does not belong to your organization' });
+    }
 
     await prisma.userFirmMapping.delete({
       where: {

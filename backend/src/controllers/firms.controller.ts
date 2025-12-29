@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
+import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
 
 export async function getFirms(req: Request, res: Response) {
   try {
@@ -9,11 +10,24 @@ export async function getFirms(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     let accessibleFirmIds: string[] = [];
     
     if (user.role === 'CA') {
-      const allFirms = await prisma.firm.findMany({ select: { id: true } });
-      accessibleFirmIds = allFirms.map(f => f.id);
+      // CA sees all firms created by anyone in their organization
+      const orgFirms = await prisma.firm.findMany({
+        where: { createdById: { in: orgUserIds } },
+        select: { id: true },
+      });
+      accessibleFirmIds = orgFirms.map(f => f.id);
     } else if (user.role === 'MANAGER') {
       const teamUserIds = await getTeamUserIds(user.userId);
       const mappings = await prisma.userFirmMapping.findMany({
@@ -29,9 +43,11 @@ export async function getFirms(req: Request, res: Response) {
       accessibleFirmIds = mappings.map(m => m.firmId);
     }
 
+    // Filter firms to only those created by the CA's organization
     const firms = await prisma.firm.findMany({
       where: {
         id: { in: accessibleFirmIds },
+        createdById: { in: orgUserIds }, // Additional security: ensure firm belongs to organization
       },
       include: {
         client: true,
@@ -98,6 +114,29 @@ export async function createFirm(req: Request, res: Response) {
       return res.status(400).json({ error: 'Client ID, name, and PAN number are required' });
     }
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify client belongs to this CA's organization
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { createdById: true },
+    });
+
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    if (!orgUserIds.includes(client.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Client does not belong to your organization' });
+    }
+
     const firm = await prisma.firm.create({
       data: {
         clientId,
@@ -151,7 +190,36 @@ export async function updateFirm(req: Request, res: Response) {
 
 export async function deleteFirm(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify firm belongs to this CA's organization
+    const firm = await prisma.firm.findUnique({
+      where: { id },
+      select: { createdById: true },
+    });
+
+    if (!firm) {
+      return res.status(404).json({ error: 'Firm not found' });
+    }
+
+    if (!orgUserIds.includes(firm.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Firm does not belong to your organization' });
+    }
+
     await prisma.firm.delete({
       where: { id },
     });

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { logActivity } from '../middleware/activityLog';
+import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
 
 // Generate Google Calendar URL
 function generateGoogleCalendarLink(
@@ -45,6 +46,37 @@ export const createMeeting = async (req: Request, res: Response) => {
 
     if (!title || !date || !time) {
       return res.status(400).json({ error: 'Title, date, and time are required' });
+    }
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify client belongs to organization if provided
+    if (clientId) {
+      const client = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { createdById: true },
+      });
+      if (!client || !orgUserIds.includes(client.createdById)) {
+        return res.status(403).json({ error: 'Access denied: Client does not belong to your organization' });
+      }
+    }
+
+    // Verify firm belongs to organization if provided
+    if (firmId) {
+      const firm = await prisma.firm.findUnique({
+        where: { id: firmId },
+        select: { createdById: true },
+      });
+      if (!firm || !orgUserIds.includes(firm.createdById)) {
+        return res.status(403).json({ error: 'Access denied: Firm does not belong to your organization' });
+      }
     }
 
     // Combine date and time into a single DateTime
@@ -120,9 +152,20 @@ export const getMeetings = async (req: Request, res: Response) => {
       select: { role: true },
     });
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const { clientId, firmId, startDate, endDate } = req.query;
 
-    const where: any = {};
+    const where: any = {
+      createdById: { in: orgUserIds }, // Only meetings created by organization members
+    };
 
     // Filter by client or firm if provided
     if (clientId) where.clientId = clientId as string;
@@ -135,7 +178,8 @@ export const getMeetings = async (req: Request, res: Response) => {
       if (endDate) where.meetingDate.lte = new Date(endDate as string);
     }
 
-    // Staff can only see meetings they created
+    // Staff can only see meetings they created (already filtered by orgUserIds above)
+    // Additional check: Staff should only see their own meetings
     if (user?.role === 'STAFF') {
       where.createdById = userId;
     }
@@ -190,6 +234,15 @@ export const getMeeting = async (req: Request, res: Response) => {
 
     const { id } = req.params;
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const meeting = await prisma.meeting.findUnique({
       where: { id },
       include: {
@@ -213,6 +266,11 @@ export const getMeeting = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Meeting not found' });
     }
 
+    // Verify meeting belongs to this CA's organization
+    if (!orgUserIds.includes(meeting.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Meeting does not belong to your organization' });
+    }
+
     res.json(meeting);
   } catch (error: any) {
     console.error('Error fetching meeting:', error);
@@ -230,12 +288,26 @@ export const updateMeeting = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { title, description, clientId, firmId, date, time, location, notes } = req.body;
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const existingMeeting = await prisma.meeting.findUnique({
       where: { id },
     });
 
     if (!existingMeeting) {
       return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    // Verify meeting belongs to this CA's organization
+    if (!orgUserIds.includes(existingMeeting.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Meeting does not belong to your organization' });
     }
 
     // Only creator or CA can update
@@ -246,6 +318,27 @@ export const updateMeeting = async (req: Request, res: Response) => {
 
     if (existingMeeting.createdById !== userId && user?.role !== 'CA') {
       return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Verify client/firm belong to organization if being updated
+    if (clientId) {
+      const client = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { createdById: true },
+      });
+      if (!client || !orgUserIds.includes(client.createdById)) {
+        return res.status(403).json({ error: 'Access denied: Client does not belong to your organization' });
+      }
+    }
+
+    if (firmId) {
+      const firm = await prisma.firm.findUnique({
+        where: { id: firmId },
+        select: { createdById: true },
+      });
+      if (!firm || !orgUserIds.includes(firm.createdById)) {
+        return res.status(403).json({ error: 'Access denied: Firm does not belong to your organization' });
+      }
     }
 
     let meetingDate = existingMeeting.meetingDate;
@@ -335,12 +428,26 @@ export const deleteMeeting = async (req: Request, res: Response) => {
 
     const { id } = req.params;
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const meeting = await prisma.meeting.findUnique({
       where: { id },
     });
 
     if (!meeting) {
       return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    // Verify meeting belongs to this CA's organization
+    if (!orgUserIds.includes(meeting.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Meeting does not belong to your organization' });
     }
 
     // Only creator or CA can delete

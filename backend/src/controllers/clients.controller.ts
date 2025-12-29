@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
+import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
 
 export async function getClients(req: Request, res: Response) {
   try {
@@ -9,12 +10,25 @@ export async function getClients(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     // Get accessible firm IDs based on role
     let accessibleFirmIds: string[] = [];
     
     if (user.role === 'CA') {
-      const allFirms = await prisma.firm.findMany({ select: { id: true } });
-      accessibleFirmIds = allFirms.map(f => f.id);
+      // CA sees all firms created by anyone in their organization
+      const orgFirms = await prisma.firm.findMany({
+        where: { createdById: { in: orgUserIds } },
+        select: { id: true },
+      });
+      accessibleFirmIds = orgFirms.map(f => f.id);
     } else if (user.role === 'MANAGER') {
       const teamUserIds = await getTeamUserIds(user.userId);
       const mappings = await prisma.userFirmMapping.findMany({
@@ -23,6 +37,7 @@ export async function getClients(req: Request, res: Response) {
       });
       accessibleFirmIds = [...new Set(mappings.map(m => m.firmId))];
     } else {
+      // Staff only see firms they're assigned to
       const mappings = await prisma.userFirmMapping.findMany({
         where: { userId: user.userId },
         select: { firmId: true },
@@ -30,8 +45,21 @@ export async function getClients(req: Request, res: Response) {
       accessibleFirmIds = mappings.map(m => m.firmId);
     }
 
+    // Also filter clients to only show those created by the CA's organization
     const clients = await prisma.client.findMany({
       where: {
+        createdById: { in: orgUserIds }, // Only clients created by this CA's organization
+        firms: {
+          some: {
+            id: { in: accessibleFirmIds },
+          },
+        },
+      },
+
+    // Also filter clients to only show those created by the CA's organization
+    const clients = await prisma.client.findMany({
+      where: {
+        createdById: { in: orgUserIds }, // Only clients created by this CA's organization
         firms: {
           some: {
             id: { in: accessibleFirmIds },
@@ -76,7 +104,22 @@ export async function getClients(req: Request, res: Response) {
 
 export async function getClient(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+    
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
     const client = await prisma.client.findUnique({
       where: { id },
       include: {
@@ -96,6 +139,11 @@ export async function getClient(req: Request, res: Response) {
 
     if (!client) {
       return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Verify client belongs to this CA's organization
+    if (!orgUserIds.includes(client.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Client does not belong to your organization' });
     }
 
     res.json(client);
@@ -139,10 +187,38 @@ export async function createClient(req: Request, res: Response) {
 
 export async function updateClient(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     const { name, contactPerson, email, phone, address, notes } = req.body;
 
-    const client = await prisma.client.update({
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify client belongs to this CA's organization
+    const client = await prisma.client.findUnique({
+      where: { id },
+      select: { createdById: true },
+    });
+
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    if (!orgUserIds.includes(client.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Client does not belong to your organization' });
+    }
+
+    const updatedClient = await prisma.client.update({
       where: { id },
       data: {
         name,
@@ -154,7 +230,7 @@ export async function updateClient(req: Request, res: Response) {
       },
     });
 
-    res.json(client);
+    res.json(updatedClient);
   } catch (error) {
     console.error('Update client error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -163,7 +239,36 @@ export async function updateClient(req: Request, res: Response) {
 
 export async function deleteClient(req: Request, res: Response) {
   try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+
+    // Get the root CA ID for this user's organization
+    const caId = await getRootCAId(user.userId);
+    if (!caId) {
+      return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Get all user IDs in this CA's organization
+    const orgUserIds = await getCAOrganizationUserIds(caId);
+
+    // Verify client belongs to this CA's organization
+    const client = await prisma.client.findUnique({
+      where: { id },
+      select: { createdById: true },
+    });
+
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    if (!orgUserIds.includes(client.createdById)) {
+      return res.status(403).json({ error: 'Access denied: Client does not belong to your organization' });
+    }
+
     await prisma.client.delete({
       where: { id },
     });
