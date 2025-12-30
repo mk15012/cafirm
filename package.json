@@ -1,0 +1,24 @@
+{
+  "name": "ca-firm-management",
+  "version": "1.0.0",
+  "description": "CA Firm Management System - Monorepo",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "web",
+    "mobile",
+    "shared"
+  ],
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "dev:mobile": "cd mobile && npm run start",
+    "build:backend": "cd backend && npm run build",
+    "build:web": "cd web && npm run build",
+    "install:all": "npm install && cd backend && npm install && cd ../web && npm install && cd ../mobile && npm install && cd ../shared && npm install"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
+

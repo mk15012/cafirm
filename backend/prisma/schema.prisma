@@ -1,0 +1,285 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CA
+  MANAGER
+  STAFF
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  AWAITING_APPROVAL
+  COMPLETED
+  ERROR
+  OVERDUE
+}
+
+enum TaskPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DocumentType {
+  ITR
+  GST
+  TDS
+  ROC
+  INVOICE
+  OTHER
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PAID
+  OVERDUE
+  PARTIAL
+}
+
+model User {
+  id            Int         @id @default(autoincrement())
+  name          String
+  email         String      @unique
+  password      String
+  phone         String?
+  role          UserRole    @default(STAFF)
+  reportsToId   Int?
+  reportsTo     User?       @relation("ReportingHierarchy", fields: [reportsToId], references: [id])
+  teamMembers   User[]      @relation("ReportingHierarchy")
+  status        UserStatus  @default(ACTIVE)
+  profilePicture String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  createdClients    Client[]         @relation("ClientCreator")
+  createdFirms      Firm[]           @relation("FirmCreator")
+  assignedTasks     Task[]           @relation("TaskAssignee")
+  createdTasks      Task[]           @relation("TaskCreator")
+  requestedApprovals Approval[]      @relation("ApprovalRequester")
+  approvedApprovals Approval[]       @relation("ApprovalApprover")
+  uploadedDocuments Document[]
+  createdInvoices   Invoice[]        @relation("InvoiceCreator")
+  createdMeetings   Meeting[]       @relation("MeetingCreator")
+  activityLogs      ActivityLog[]
+  firmAssignments   UserFirmMapping[] @relation("UserFirmMapping")
+  firmAssignmentsCreated UserFirmMapping[] @relation("FirmAssignment")
+
+  @@index([email])
+  @@index([role])
+}
+
+model Client {
+  id          Int      @id @default(autoincrement())
+  name        String
+  contactPerson String?
+  email       String?
+  phone       String?
+  address     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById Int
+  createdBy   User     @relation("ClientCreator", fields: [createdById], references: [id])
+
+  // Relations
+  firms Firm[]
+  meetings Meeting[]
+
+  @@index([createdById])
+}
+
+model Firm {
+  id               Int      @id @default(autoincrement())
+  clientId         Int
+  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name             String
+  panNumber        String   @unique
+  gstNumber        String?  @unique
+  registrationNumber String?
+  address          String?
+  status           String   @default("Active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdById      Int
+  createdBy        User     @relation("FirmCreator", fields: [createdById], references: [id])
+
+  // Relations
+  tasks     Task[]
+  documents Document[]
+  invoices  Invoice[]
+  meetings  Meeting[]
+  userAssignments UserFirmMapping[]
+
+  @@index([clientId])
+  @@index([panNumber])
+  @@index([gstNumber])
+}
+
+model Task {
+  id          Int          @id @default(autoincrement())
+  firmId      Int
+  firm        Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  assignedToId Int
+  assignedTo User         @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  status      TaskStatus  @default(PENDING)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  createdById Int
+  createdBy   User         @relation("TaskCreator", fields: [createdById], references: [id])
+
+  // Relations
+  approval   Approval?
+  documents  Document[]
+
+  @@index([firmId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Approval {
+  id            Int            @id @default(autoincrement())
+  taskId        Int            @unique
+  task          Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  requestedById Int
+  requestedBy   User           @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  approvedById  Int?
+  approvedBy    User?          @relation("ApprovalApprover", fields: [approvedById], references: [id])
+  status        ApprovalStatus @default(PENDING)
+  remarks       String?
+  createdAt      DateTime       @default(now())
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+
+  @@index([status])
+  @@index([requestedById])
+}
+
+model Document {
+  id           Int          @id @default(autoincrement())
+  firmId       Int
+  firm         Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  taskId       Int?
+  task         Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  documentType DocumentType @default(OTHER)
+  fileName     String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  uploadedById Int
+  uploadedBy   User         @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([firmId])
+  @@index([taskId])
+  @@index([documentType])
+}
+
+model Invoice {
+  id              Int           @id @default(autoincrement())
+  firmId          Int
+  firm            Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  invoiceNumber   String        @unique
+  amount          Float
+  taxAmount       Float         @default(0)
+  totalAmount     Float
+  dueDate         DateTime
+  status          InvoiceStatus @default(UNPAID)
+  paidDate        DateTime?
+  paymentReference String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  createdById     Int
+  createdBy       User          @relation("InvoiceCreator", fields: [createdById], references: [id])
+
+  @@index([firmId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([invoiceNumber])
+}
+
+model UserFirmMapping {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation("UserFirmMapping", fields: [userId], references: [id], onDelete: Cascade)
+  firmId    Int
+  firm      Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+  assignedById Int
+  assignedBy   User   @relation("FirmAssignment", fields: [assignedById], references: [id])
+
+  @@unique([userId, firmId])
+  @@index([userId])
+  @@index([firmId])
+}
+
+model ActivityLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  actionType  String   // CREATE, UPDATE, DELETE, VIEW, APPROVE, REJECT
+  entityType  String   // User, Client, Firm, Task, Approval, Document, Invoice
+  entityId    String
+  description String
+  metadata    String?  @default("{}") // JSON string for before/after values
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model Meeting {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  clientId    Int?
+  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  firmId      Int?
+  firm        Firm?    @relation(fields: [firmId], references: [id], onDelete: SetNull)
+  meetingDate DateTime
+  meetingTime String   // Time in HH:MM format
+  location    String?
+  notes       String?
+  googleCalendarLink String?
+  createdById Int
+  createdBy   User     @relation("MeetingCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([firmId])
+  @@index([createdById])
+  @@index([meetingDate])
+}
+
