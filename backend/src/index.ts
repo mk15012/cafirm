@@ -3,19 +3,20 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import routes from './routes';
 import { logActivity } from './middleware/activityLog';
-import { initializeEmailService } from './services/email.service';
 
 dotenv.config();
-
-// Initialize email service
-initializeEmailService();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:8081',
+    'http://127.0.0.1:8081',
+    process.env.CORS_ORIGIN || '',
+  ].filter(Boolean),
   credentials: true,
 }));
 app.use(express.json());

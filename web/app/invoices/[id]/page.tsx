@@ -9,17 +9,14 @@ import { format } from 'date-fns';
 import AppLayout from '@/components/layout/AppLayout';
 import { 
   ArrowLeft, 
-  Receipt, 
   Building2, 
   Users, 
   Calendar, 
-  DollarSign,
   CheckCircle,
   XCircle,
   AlertCircle,
   FileText,
   CreditCard,
-  Send,
   Mail
 } from 'lucide-react';
 
@@ -40,6 +37,8 @@ interface Invoice {
     client: {
       id: number;
       name: string;
+      email?: string;
+      phone?: string;
     };
   };
   createdBy: {
@@ -57,7 +56,6 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
-  const [sendingInvoice, setSendingInvoice] = useState(false);
 
   useEffect(() => {
     initializeAuth();
@@ -101,19 +99,63 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const handleSendInvoice = async () => {
+  const handleSendInvoice = () => {
     if (!invoice) return;
-    const recipientEmail = invoice.firm.client.email || 'client';
-    if (!confirm(`Send invoice to ${recipientEmail}?`)) return;
-    try {
-      setSendingInvoice(true);
-      const response = await api.post(`/invoices/${params.id}/send`, {});
-      alert(`Invoice sent successfully to ${response.data.sentTo}`);
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to send invoice');
-    } finally {
-      setSendingInvoice(false);
+    
+    const clientEmail = invoice.firm.client.email;
+    if (!clientEmail) {
+      alert('Client email not found. Please add email to the client profile first.');
+      return;
     }
+
+    // Format currency
+    const formatCurrency = (amount: number) => '₹' + amount.toLocaleString('en-IN');
+    
+    // Format date
+    const formatDueDate = (date: string) => format(new Date(date), 'MMMM dd, yyyy');
+
+    // Create email subject
+    const subject = `Invoice #${invoice.invoiceNumber} - Amount Due: ${formatCurrency(invoice.totalAmount)}`;
+    
+    // Create email body
+    const body = `Dear ${invoice.firm.client.name},
+
+Please find below the invoice details for services rendered to ${invoice.firm.name}.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INVOICE DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Invoice Number: #${invoice.invoiceNumber}
+Firm Name: ${invoice.firm.name}
+Invoice Date: ${format(new Date(invoice.createdAt), 'MMMM dd, yyyy')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AMOUNT BREAKDOWN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Service Amount: ${formatCurrency(invoice.amount)}
+Tax (GST): ${formatCurrency(invoice.taxAmount)}
+─────────────────────────────────────────
+TOTAL AMOUNT DUE: ${formatCurrency(invoice.totalAmount)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAYMENT DUE DATE: ${formatDueDate(invoice.dueDate)}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please make the payment by the due date mentioned above.
+
+If you have any questions regarding this invoice, please feel free to contact us.
+
+Thank you for your business!
+
+Best regards,
+${invoice.createdBy.name}
+${invoice.createdBy.email}`;
+
+    // Create mailto link and open it
+    const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoLink, '_blank');
   };
 
   const getStatusColor = (status: string) => {
@@ -207,12 +249,12 @@ export default function InvoiceDetailPage() {
               </span>
               <button
                 onClick={handleSendInvoice}
-                disabled={sendingInvoice || !invoice.firm.client.email}
+                disabled={!invoice.firm.client.email}
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
                 title={!invoice.firm.client.email ? 'Client email not available' : 'Send invoice via email'}
               >
-                <Send className="w-4 h-4" />
-                {sendingInvoice ? 'Sending...' : 'Send Invoice'}
+                <Mail className="w-4 h-4" />
+                Send Invoice
               </button>
               {invoice.status !== 'PAID' && (
                 <button

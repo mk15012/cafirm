@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, RefreshControl, Linking } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
@@ -22,6 +22,7 @@ interface Invoice {
     client: {
       id: number;
       name: string;
+      email?: string;
     };
   };
   createdBy: {
@@ -40,7 +41,6 @@ export default function InvoiceDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
-  const [sendingInvoice, setSendingInvoice] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -88,26 +88,63 @@ export default function InvoiceDetailScreen() {
     ]);
   };
 
-  const handleSendInvoice = async () => {
+  const handleSendInvoice = () => {
     if (!invoice) return;
-    const recipientEmail = invoice.firm.client.email || 'client';
-    Alert.alert('Send Invoice', `Send invoice to ${recipientEmail}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Send',
-        onPress: async () => {
-          try {
-            setSendingInvoice(true);
-            const response = await api.post(`/invoices/${params.id}/send`, {});
-            Alert.alert('Success', `Invoice sent successfully to ${response.data.sentTo}`);
-          } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'Failed to send invoice');
-          } finally {
-            setSendingInvoice(false);
-          }
-        },
-      },
-    ]);
+    
+    const clientEmail = invoice.firm.client.email;
+    if (!clientEmail) {
+      Alert.alert('Missing Email', 'Client email not found. Please add email to the client profile first.');
+      return;
+    }
+
+    // Format currency
+    const formatCurrency = (amount: number) => '₹' + amount.toLocaleString('en-IN');
+    
+    // Format date
+    const formatDueDate = (date: string) => format(new Date(date), 'MMMM dd, yyyy');
+
+    // Create email subject
+    const subject = `Invoice #${invoice.invoiceNumber} - Amount Due: ${formatCurrency(invoice.totalAmount)}`;
+    
+    // Create email body
+    const body = `Dear ${invoice.firm.client.name},
+
+Please find below the invoice details for services rendered to ${invoice.firm.name}.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INVOICE DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Invoice Number: #${invoice.invoiceNumber}
+Firm Name: ${invoice.firm.name}
+Invoice Date: ${format(new Date(invoice.createdAt), 'MMMM dd, yyyy')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AMOUNT BREAKDOWN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Service Amount: ${formatCurrency(invoice.amount)}
+Tax (GST): ${formatCurrency(invoice.taxAmount)}
+─────────────────────────────────────────
+TOTAL AMOUNT DUE: ${formatCurrency(invoice.totalAmount)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAYMENT DUE DATE: ${formatDueDate(invoice.dueDate)}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please make the payment by the due date mentioned above.
+
+If you have any questions regarding this invoice, please feel free to contact us.
+
+Thank you for your business!
+
+Best regards,
+${invoice.createdBy.name}
+${invoice.createdBy.email}`;
+
+    // Create mailto link and open it
+    const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    Linking.openURL(mailtoLink);
   };
 
   const getStatusColor = (status: string) => {
@@ -199,11 +236,11 @@ export default function InvoiceDetailScreen() {
 
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.sendButton, (!invoice.firm.client.email || sendingInvoice) && styles.disabledButton]}
+            style={[styles.actionButton, styles.sendButton, !invoice.firm.client.email && styles.disabledButton]}
             onPress={handleSendInvoice}
-            disabled={!invoice.firm.client.email || sendingInvoice}
+            disabled={!invoice.firm.client.email}
           >
-            <Text style={styles.actionButtonText}>{sendingInvoice ? 'Sending...' : 'Send Invoice'}</Text>
+            <Text style={styles.actionButtonText}>📧 Send Invoice</Text>
           </TouchableOpacity>
           {invoice.status !== 'PAID' && (
             <TouchableOpacity
@@ -552,16 +589,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fee2e2',
     borderColor: '#ef4444',
     borderWidth: 1,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#991b1b',
-    marginBottom: 4,
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#b91c1c',
   },
 });
 
