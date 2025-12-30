@@ -140,8 +140,11 @@ export async function createUser(req: Request, res: Response) {
     // Get all user IDs in this CA's organization
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
+    // Convert reportsToId to number for comparison (comes as string from form)
+    const reportsToIdNum = reportsToId ? parseInt(reportsToId, 10) : null;
+
     // If reportsToId is provided, verify they belong to the same organization
-    if (reportsToId && !orgUserIds.includes(reportsToId)) {
+    if (reportsToIdNum && !orgUserIds.includes(reportsToIdNum)) {
       return res.status(403).json({ error: 'Access denied: Cannot assign reports to user outside your organization' });
     }
 
@@ -162,7 +165,7 @@ export async function createUser(req: Request, res: Response) {
         password: hashedPassword,
         phone,
         role,
-        reportsToId: reportsToId || caId, // Default to CA if no reportsToId provided
+        reportsToId: reportsToIdNum || caId, // Default to CA if no reportsToId provided
       },
       select: {
         id: true,
@@ -189,6 +192,7 @@ export async function updateUser(req: Request, res: Response) {
     }
 
     const { id } = req.params;
+    const userId = parseInt(id, 10);
     const { name, email, phone, role, reportsToId, status } = req.body;
 
     // Get the root CA ID for the requesting user's organization
@@ -201,12 +205,15 @@ export async function updateUser(req: Request, res: Response) {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     // Verify the user being updated belongs to the same organization
-    if (!orgUserIds.includes(id)) {
+    if (!orgUserIds.includes(userId)) {
       return res.status(403).json({ error: 'Access denied: User does not belong to your organization' });
     }
 
+    // Convert reportsToId to number for comparison
+    const reportsToIdNum = reportsToId ? parseInt(reportsToId, 10) : null;
+
     // If reportsToId is being updated, verify they belong to the same organization
-    if (reportsToId !== undefined && reportsToId && !orgUserIds.includes(reportsToId)) {
+    if (reportsToIdNum && !orgUserIds.includes(reportsToIdNum)) {
       return res.status(403).json({ error: 'Access denied: Cannot assign reports to user outside your organization' });
     }
 
@@ -215,11 +222,11 @@ export async function updateUser(req: Request, res: Response) {
     if (email) updateData.email = email;
     if (phone !== undefined) updateData.phone = phone;
     if (role) updateData.role = role;
-    if (reportsToId !== undefined) updateData.reportsToId = reportsToId;
+    if (reportsToId !== undefined) updateData.reportsToId = reportsToIdNum;
     if (status) updateData.status = status;
 
     const user = await prisma.user.update({
-      where: { id },
+      where: { id: userId },
       data: updateData,
       select: {
         id: true,
@@ -246,6 +253,7 @@ export async function deleteUser(req: Request, res: Response) {
     }
 
     const { id } = req.params;
+    const userId = parseInt(id, 10);
 
     // Get the root CA ID for the requesting user's organization
     const caId = await getRootCAId(requestingUser.userId);
@@ -257,17 +265,17 @@ export async function deleteUser(req: Request, res: Response) {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     // Verify the user being deleted belongs to the same organization
-    if (!orgUserIds.includes(id)) {
+    if (!orgUserIds.includes(userId)) {
       return res.status(403).json({ error: 'Access denied: User does not belong to your organization' });
     }
 
     // Prevent CA from deleting themselves
-    if (id === caId) {
+    if (userId === caId) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
     await prisma.user.delete({
-      where: { id },
+      where: { id: userId },
     });
 
     res.json({ message: 'User deleted successfully' });
@@ -285,7 +293,9 @@ export async function assignFirm(req: Request, res: Response) {
     }
 
     const { id } = req.params;
+    const userId = parseInt(id, 10);
     const { firmId } = req.body;
+    const firmIdNum = parseInt(firmId, 10);
 
     if (!firmId) {
       return res.status(400).json({ error: 'Firm ID is required' });
@@ -301,13 +311,13 @@ export async function assignFirm(req: Request, res: Response) {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     // Verify the user being assigned belongs to the same organization
-    if (!orgUserIds.includes(id)) {
+    if (!orgUserIds.includes(userId)) {
       return res.status(403).json({ error: 'Access denied: User does not belong to your organization' });
     }
 
     // Verify the firm belongs to the same organization
     const firm = await prisma.firm.findUnique({
-      where: { id: firmId },
+      where: { id: firmIdNum },
       select: { createdById: true },
     });
 
@@ -321,8 +331,8 @@ export async function assignFirm(req: Request, res: Response) {
 
     const mapping = await prisma.userFirmMapping.create({
       data: {
-        userId: id,
-        firmId,
+        userId: userId,
+        firmId: firmIdNum,
         assignedById: user.userId,
       },
       include: {
@@ -352,6 +362,8 @@ export async function unassignFirm(req: Request, res: Response) {
     }
 
     const { id, firmId } = req.params;
+    const userId = parseInt(id, 10);
+    const firmIdNum = parseInt(firmId, 10);
 
     // Get the root CA ID for this user's organization
     const caId = await getRootCAId(user.userId);
@@ -363,13 +375,13 @@ export async function unassignFirm(req: Request, res: Response) {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     // Verify the user belongs to the same organization
-    if (!orgUserIds.includes(id)) {
+    if (!orgUserIds.includes(userId)) {
       return res.status(403).json({ error: 'Access denied: User does not belong to your organization' });
     }
 
     // Verify the firm belongs to the same organization
     const firm = await prisma.firm.findUnique({
-      where: { id: firmId },
+      where: { id: firmIdNum },
       select: { createdById: true },
     });
 
@@ -384,8 +396,8 @@ export async function unassignFirm(req: Request, res: Response) {
     await prisma.userFirmMapping.delete({
       where: {
         userId_firmId: {
-          userId: id,
-          firmId,
+          userId: userId,
+          firmId: firmIdNum,
         },
       },
     });
