@@ -66,11 +66,7 @@ export default function FirmDetailScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/auth/login');
-      return;
-    }
-    if (params.id) {
+    if (isAuthenticated && params.id) {
       loadFirm();
     }
   }, [params.id, isAuthenticated]);
@@ -120,7 +116,7 @@ export default function FirmDetailScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/firms')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Firm Details</Text>
@@ -138,7 +134,7 @@ export default function FirmDetailScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/firms')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Firm Details</Text>
@@ -161,7 +157,7 @@ export default function FirmDetailScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadFirm} />}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/firms')}>
           <Text style={styles.backButton}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Firm Details</Text>

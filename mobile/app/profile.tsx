@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, RefreshControl, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, RefreshControl, ActivityIndicator, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface UserProfile {
   id: string;
@@ -16,9 +17,21 @@ interface UserProfile {
   createdAt: string;
 }
 
+interface SubscriptionData {
+  subscription: {
+    plan: string;
+    planName: string;
+    status: string;
+  };
+  usage: {
+    clients: { used: number; limit: number };
+    users: { used: number; limit: number };
+  };
+}
+
 export default function ProfileScreen() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, user: currentUser, logout, initializeAuth } = useAuthStore();
+  const { isAuthenticated, user: currentUser, logout } = useAuthStore();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,20 +43,25 @@ export default function ProfileScreen() {
     confirmPassword: '',
   });
   const [changingPassword, setChangingPassword] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
 
   useEffect(() => {
-    initializeAuth();
-  }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      if (!isAuthenticated) {
-        router.replace('/auth/login');
-        return;
-      }
+    if (isAuthenticated) {
       loadProfile();
+      if (currentUser?.role === 'CA') {
+        loadSubscription();
+      }
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated]);
+
+  const loadSubscription = async () => {
+    try {
+      const response = await api.get('/subscription/my');
+      setSubscription(response.data);
+    } catch (err) {
+      console.error('Failed to load subscription:', err);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -75,18 +93,42 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          await logout();
-          router.replace('/auth/login');
-        },
-      },
-    ]);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const doLogout = async () => {
+    setLoggingOut(true);
+    try {
+      // Clear storage directly
+      await AsyncStorage.multiRemove(['token', 'user']);
+      // Call the store logout
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    // Navigate to login
+    router.replace('/auth/login');
+  };
+
+  const handleLogout = () => {
+    if (loggingOut) return;
+    
+    // On web, Alert.alert doesn't work - use window.confirm instead
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to logout?');
+      if (confirmed) {
+        doLogout();
+      }
+    } else {
+      // On native, use the native Alert
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Logout', style: 'destructive', onPress: doLogout },
+        ]
+      );
+    }
   };
 
   const handlePasswordChange = async () => {
@@ -134,7 +176,7 @@ export default function ProfileScreen() {
     return colors[role] || '#6b7280';
   };
 
-  if (isLoading || loading) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0ea5e9" />
@@ -159,7 +201,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadProfile} colors={['#0ea5e9']} />}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/dashboard')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Profile</Text>
@@ -183,6 +225,44 @@ export default function ProfileScreen() {
             <View style={[styles.roleBadge, { backgroundColor: getRoleColor(displayProfile.role) + '20', borderColor: getRoleColor(displayProfile.role) }]}>
               <Text style={[styles.roleText, { color: getRoleColor(displayProfile.role) }]}>{displayProfile.role}</Text>
             </View>
+
+            {/* Subscription Badge (CA only) */}
+            {displayProfile.role === 'CA' && subscription && (
+              <View style={styles.subscriptionCard}>
+                <View style={styles.subscriptionHeader}>
+                  <Text style={styles.subscriptionIcon}>
+                    {subscription.subscription.plan === 'FREE' ? '⚡' : 
+                     subscription.subscription.plan === 'BASIC' ? '🏢' :
+                     subscription.subscription.plan === 'PROFESSIONAL' ? '👑' : '🚀'}
+                  </Text>
+                  <View>
+                    <Text style={styles.subscriptionPlan}>{subscription.subscription.planName} Plan</Text>
+                    <Text style={styles.subscriptionStatus}>
+                      {subscription.subscription.plan === 'FREE' ? 'Limited features' : 'Active subscription'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.usageContainer}>
+                  <View style={styles.usageItem}>
+                    <Text style={styles.usageLabel}>Clients</Text>
+                    <Text style={styles.usageValue}>
+                      {subscription.usage.clients.used}/{subscription.usage.clients.limit === -1 ? '∞' : subscription.usage.clients.limit}
+                    </Text>
+                  </View>
+                  <View style={styles.usageItem}>
+                    <Text style={styles.usageLabel}>Team</Text>
+                    <Text style={styles.usageValue}>
+                      {subscription.usage.users.used}/{subscription.usage.users.limit === -1 ? '∞' : subscription.usage.users.limit}
+                    </Text>
+                  </View>
+                </View>
+                {subscription.subscription.plan === 'FREE' && (
+                  <TouchableOpacity style={styles.upgradeButton}>
+                    <Text style={styles.upgradeButtonText}>Upgrade Plan →</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
 
             {/* Tabs */}
             <View style={styles.tabs}>
@@ -287,8 +367,15 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
+        <TouchableOpacity 
+          style={[styles.logoutButton, loggingOut && { opacity: 0.6 }]} 
+          onPress={handleLogout}
+          disabled={loggingOut}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.logoutButtonText}>
+            {loggingOut ? 'Logging out...' : 'Logout'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -312,6 +399,66 @@ const styles = StyleSheet.create({
   name: { fontSize: 24, fontWeight: '700', color: '#0f172a', marginBottom: 8 },
   roleBadge: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, marginBottom: 16 },
   roleText: { fontSize: 14, fontWeight: '600' },
+  subscriptionCard: { 
+    width: '100%', 
+    backgroundColor: '#f8fafc', 
+    borderRadius: 12, 
+    padding: 16, 
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  subscriptionHeader: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12, 
+    marginBottom: 12,
+  },
+  subscriptionIcon: { 
+    fontSize: 28,
+  },
+  subscriptionPlan: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: '#0f172a',
+  },
+  subscriptionStatus: { 
+    fontSize: 12, 
+    color: '#64748b',
+  },
+  usageContainer: { 
+    flexDirection: 'row', 
+    gap: 16, 
+    marginBottom: 12,
+  },
+  usageItem: { 
+    flex: 1, 
+    backgroundColor: '#ffffff', 
+    padding: 12, 
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  usageLabel: { 
+    fontSize: 12, 
+    color: '#64748b', 
+    marginBottom: 4,
+  },
+  usageValue: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: '#0f172a',
+  },
+  upgradeButton: { 
+    backgroundColor: '#7c3aed', 
+    padding: 12, 
+    borderRadius: 8, 
+    alignItems: 'center',
+  },
+  upgradeButtonText: { 
+    color: 'white', 
+    fontSize: 14, 
+    fontWeight: '600',
+  },
   tabs: { flexDirection: 'row', width: '100%', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', marginBottom: 16 },
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
   tabActive: { borderBottomWidth: 2, borderBottomColor: '#0ea5e9' },

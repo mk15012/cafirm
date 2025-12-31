@@ -39,10 +39,12 @@ input[type="text"],
 input[type="tel"],
 input[type="number"],
 input[type="date"],
+input[type="time"],
 textarea,
 select {
   color: #111827 !important; /* text-gray-900 */
   background-color: #ffffff !important;
+  color-scheme: light !important;
 }
 
 input[type="email"]::placeholder,

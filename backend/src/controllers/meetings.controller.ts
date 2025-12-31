@@ -37,7 +37,7 @@ function generateGoogleCalendarLink(
 
 export const createMeeting = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId;
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -47,6 +47,10 @@ export const createMeeting = async (req: Request, res: Response) => {
     if (!title || !date || !time) {
       return res.status(400).json({ error: 'Title, date, and time are required' });
     }
+
+    // Parse IDs to integers
+    const parsedClientId = clientId ? parseInt(clientId, 10) : null;
+    const parsedFirmId = firmId ? parseInt(firmId, 10) : null;
 
     // Get the root CA ID for this user's organization
     const caId = await getRootCAId(userId);
@@ -58,9 +62,9 @@ export const createMeeting = async (req: Request, res: Response) => {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     // Verify client belongs to organization if provided
-    if (clientId) {
+    if (parsedClientId) {
       const client = await prisma.client.findUnique({
-        where: { id: clientId },
+        where: { id: parsedClientId },
         select: { createdById: true },
       });
       if (!client || !orgUserIds.includes(client.createdById)) {
@@ -69,9 +73,9 @@ export const createMeeting = async (req: Request, res: Response) => {
     }
 
     // Verify firm belongs to organization if provided
-    if (firmId) {
+    if (parsedFirmId) {
       const firm = await prisma.firm.findUnique({
-        where: { id: firmId },
+        where: { id: parsedFirmId },
         select: { createdById: true },
       });
       if (!firm || !orgUserIds.includes(firm.createdById)) {
@@ -97,8 +101,8 @@ export const createMeeting = async (req: Request, res: Response) => {
       data: {
         title,
         description: description || notes,
-        clientId: clientId || null,
-        firmId: firmId || null,
+        clientId: parsedClientId,
+        firmId: parsedFirmId,
         meetingDate,
         meetingTime: time,
         location: location || null,
@@ -142,7 +146,7 @@ export const createMeeting = async (req: Request, res: Response) => {
 
 export const getMeetings = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId;
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -227,12 +231,17 @@ export const getMeetings = async (req: Request, res: Response) => {
 
 export const getMeeting = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId;
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { id } = req.params;
+    const meetingId = parseInt(id, 10);
+    
+    if (isNaN(meetingId)) {
+      return res.status(400).json({ error: 'Invalid meeting ID' });
+    }
 
     // Get the root CA ID for this user's organization
     const caId = await getRootCAId(userId);
@@ -244,7 +253,7 @@ export const getMeeting = async (req: Request, res: Response) => {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     const meeting = await prisma.meeting.findUnique({
-      where: { id },
+      where: { id: meetingId },
       include: {
         client: true,
         firm: {
@@ -280,12 +289,18 @@ export const getMeeting = async (req: Request, res: Response) => {
 
 export const updateMeeting = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId;
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { id } = req.params;
+    const meetingId = parseInt(id, 10);
+    
+    if (isNaN(meetingId)) {
+      return res.status(400).json({ error: 'Invalid meeting ID' });
+    }
+    
     const { title, description, clientId, firmId, date, time, location, notes } = req.body;
 
     // Get the root CA ID for this user's organization
@@ -298,7 +313,7 @@ export const updateMeeting = async (req: Request, res: Response) => {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     const existingMeeting = await prisma.meeting.findUnique({
-      where: { id },
+      where: { id: meetingId },
     });
 
     if (!existingMeeting) {
@@ -373,12 +388,12 @@ export const updateMeeting = async (req: Request, res: Response) => {
     }
 
     const meeting = await prisma.meeting.update({
-      where: { id },
+      where: { id: meetingId },
       data: {
         title: title || existingMeeting.title,
         description: description !== undefined ? description : existingMeeting.description,
-        clientId: clientId !== undefined ? clientId : existingMeeting.clientId,
-        firmId: firmId !== undefined ? firmId : existingMeeting.firmId,
+        clientId: clientId !== undefined ? (clientId ? parseInt(clientId, 10) : null) : existingMeeting.clientId,
+        firmId: firmId !== undefined ? (firmId ? parseInt(firmId, 10) : null) : existingMeeting.firmId,
         meetingDate,
         meetingTime,
         location: location !== undefined ? location : existingMeeting.location,
@@ -421,12 +436,17 @@ export const updateMeeting = async (req: Request, res: Response) => {
 
 export const deleteMeeting = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId;
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const { id } = req.params;
+    const meetingId = parseInt(id, 10);
+    
+    if (isNaN(meetingId)) {
+      return res.status(400).json({ error: 'Invalid meeting ID' });
+    }
 
     // Get the root CA ID for this user's organization
     const caId = await getRootCAId(userId);
@@ -438,7 +458,7 @@ export const deleteMeeting = async (req: Request, res: Response) => {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     const meeting = await prisma.meeting.findUnique({
-      where: { id },
+      where: { id: meetingId },
     });
 
     if (!meeting) {
@@ -461,7 +481,7 @@ export const deleteMeeting = async (req: Request, res: Response) => {
     }
 
     await prisma.meeting.delete({
-      where: { id },
+      where: { id: meetingId },
     });
 
     // Log activity
@@ -469,7 +489,7 @@ export const deleteMeeting = async (req: Request, res: Response) => {
       userId,
       'DELETE',
       'Meeting',
-      id,
+      meetingId,
       `Deleted meeting: ${meeting.title}`,
       req.ip
     );

@@ -10,6 +10,9 @@ import approvalsRoutes from './approvals.routes';
 import meetingsRoutes from './meetings.routes';
 import usersRoutes from './users.routes';
 import activityLogsRoutes from './activityLogs.routes';
+import credentialsRoutes from './credentials.routes';
+import subscriptionRoutes from './subscription.routes';
+import complianceRoutes from './compliance.routes';
 
 const router = Router();
 
@@ -24,6 +27,9 @@ router.use('/approvals', approvalsRoutes);
 router.use('/meetings', meetingsRoutes);
 router.use('/users', usersRoutes);
 router.use('/activity-logs', activityLogsRoutes);
+router.use('/credentials', credentialsRoutes);
+router.use('/subscription', subscriptionRoutes);
+router.use('/compliance', complianceRoutes);
 
 export default router;
 

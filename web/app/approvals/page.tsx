@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import AppLayout from '@/components/layout/AppLayout';
 import { Clock, CheckCircle, XCircle, Filter, X, Building2, User, Calendar, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Approval {
   id: number;
@@ -71,28 +72,30 @@ export default function ApprovalsPage() {
     if (!selectedApproval) return;
     try {
       await api.put(`/approvals/${selectedApproval.id}/approve`, { remarks });
+      toast.success('Task approved successfully!');
       setSelectedApproval(null);
       setActionType(null);
       setRemarks('');
       loadApprovals();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to approve');
+      toast.error(error.response?.data?.error || 'Failed to approve');
     }
   };
 
   const handleReject = async () => {
     if (!selectedApproval || !remarks.trim()) {
-      alert('Remarks are required for rejection');
+      toast.error('Remarks are required for rejection');
       return;
     }
     try {
       await api.put(`/approvals/${selectedApproval.id}/reject`, { remarks });
+      toast.success('Task rejected!');
       setSelectedApproval(null);
       setActionType(null);
       setRemarks('');
       loadApprovals();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to reject');
+      toast.error(error.response?.data?.error || 'Failed to reject');
     }
   };
 

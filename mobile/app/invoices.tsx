@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, RefreshControl, ActivityIndicator, Linking } from 'react-native';
+import { useEffect, useState, useMemo } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, RefreshControl, ActivityIndicator, Linking, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Picker } from '@react-native-picker/picker';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import { format } from 'date-fns';
@@ -19,20 +20,50 @@ interface Invoice {
   createdBy: { id: number; name: string; email: string };
 }
 
+interface Client {
+  id: number;
+  name: string;
+}
+
+interface Firm {
+  id: number;
+  name: string;
+  client: { id: number; name: string };
+}
+
 export default function InvoicesScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [firms, setFirms] = useState<Firm[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState({ status: '' });
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form state
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    firmId: '',
+    amount: '',
+    taxAmount: '',
+    dueDate: '',
+  });
+
+  // Filter firms based on selected client
+  const filteredFirms = useMemo(() => {
+    if (!selectedClientId) return [];
+    return firms.filter(firm => firm.client.id === selectedClientId);
+  }, [firms, selectedClientId]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/auth/login');
-      return;
+    if (isAuthenticated) {
+      loadInvoices();
+      loadClients();
+      loadFirms();
     }
-    loadInvoices();
   }, [isAuthenticated, filters]);
 
   const loadInvoices = async () => {
@@ -49,6 +80,66 @@ export default function InvoicesScreen() {
     }
   };
 
+  const loadClients = async () => {
+    try {
+      const response = await api.get('/clients');
+      setClients(response.data);
+    } catch (error) {
+      console.error('Failed to load clients:', error);
+    }
+  };
+
+  const loadFirms = async () => {
+    try {
+      const response = await api.get('/firms');
+      setFirms(response.data);
+    } catch (error) {
+      console.error('Failed to load firms:', error);
+    }
+  };
+
+  const handleClientChange = (clientId: number | null) => {
+    setSelectedClientId(clientId);
+    setFormData({ ...formData, firmId: '' });
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.firmId || !formData.amount || !formData.dueDate) {
+      Alert.alert('Error', 'Please fill all required fields');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const amount = parseFloat(formData.amount);
+      const taxAmount = parseFloat(formData.taxAmount) || 0;
+      await api.post('/invoices', {
+        firmId: formData.firmId,
+        amount,
+        taxAmount,
+        dueDate: formData.dueDate,
+      });
+      Alert.alert('Success', 'Invoice created successfully!');
+      setShowAddModal(false);
+      resetForm();
+      loadInvoices();
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to create invoice');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedClientId(null);
+    setFormData({
+      firmId: '',
+      amount: '',
+      taxAmount: '',
+      dueDate: '',
+    });
+  };
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = { UNPAID: '#fbbf24', PAID: '#10b981', OVERDUE: '#ef4444', PARTIAL: '#3b82f6' };
     return colors[status] || '#6b7280';
@@ -62,6 +153,7 @@ export default function InvoicesScreen() {
         onPress: async () => {
           try {
             await api.put(`/invoices/${id}/pay`, {});
+            Alert.alert('Success', 'Invoice marked as paid!');
             loadInvoices();
           } catch (error: any) {
             Alert.alert('Error', error.response?.data?.error || 'Failed to mark as paid');
@@ -78,16 +170,11 @@ export default function InvoicesScreen() {
       return;
     }
 
-    // Format currency
     const formatCurrency = (amount: number) => '₹' + amount.toLocaleString('en-IN');
-    
-    // Format date
     const formatDueDate = (date: string) => format(new Date(date), 'MMMM dd, yyyy');
 
-    // Create email subject
     const subject = `Invoice #${invoice.invoiceNumber} - Amount Due: ${formatCurrency(invoice.totalAmount)}`;
     
-    // Create email body
     const body = `Dear ${invoice.firm.client.name},
 
 Please find below the invoice details for services rendered to ${invoice.firm.name}.
@@ -123,7 +210,6 @@ Best regards,
 ${invoice.createdBy.name}
 ${invoice.createdBy.email}`;
 
-    // Create mailto link and open it
     const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     Linking.openURL(mailtoLink);
   };
@@ -141,11 +227,13 @@ ${invoice.createdBy.email}`;
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadInvoices} colors={['#0ea5e9']} />}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/dashboard')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Invoices</Text>
-          <View style={{ width: 60 }} />
+          <TouchableOpacity onPress={() => setShowAddModal(true)}>
+            <Text style={styles.addButton}>+ Add</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Filters */}
@@ -174,8 +262,8 @@ ${invoice.createdBy.email}`;
                   <Text style={styles.statusBadgeText}>{invoice.status}</Text>
                 </View>
               </View>
-              <Text style={styles.cardSubtext}>Firm: {invoice.firm.name}</Text>
               <Text style={styles.cardSubtext}>Client: {invoice.firm.client.name}</Text>
+              <Text style={styles.cardSubtext}>Firm: {invoice.firm.name}</Text>
               <View style={styles.amountRow}>
                 <Text style={styles.amountLabel}>Total:</Text>
                 <Text style={styles.totalValue}>₹{invoice.totalAmount.toLocaleString('en-IN')}</Text>
@@ -187,11 +275,11 @@ ${invoice.createdBy.email}`;
                   onPress={() => handleSendInvoice(invoice)}
                   disabled={!invoice.firm.client.email}
                 >
-                  <Text style={styles.sendButtonText}>📧 Send Invoice</Text>
+                  <Text style={styles.sendButtonText}>📧 Send</Text>
                 </TouchableOpacity>
                 {invoice.status !== 'PAID' && (
                   <TouchableOpacity style={styles.payButton} onPress={() => handlePay(invoice.id)}>
-                    <Text style={styles.payButtonText}>✓ Mark Paid</Text>
+                    <Text style={styles.payButtonText}>✓ Paid</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -200,6 +288,106 @@ ${invoice.createdBy.email}`;
           {invoices.length === 0 && <Text style={styles.emptyText}>No invoices found</Text>}
         </View>
       </ScrollView>
+
+      {/* Add Invoice Modal */}
+      <Modal visible={showAddModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create Invoice</Text>
+              <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {/* Client Selection */}
+              <Text style={styles.label}>Client *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedClientId}
+                  onValueChange={(value) => handleClientChange(value)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select Client First" value={null} />
+                  {clients.map(client => (
+                    <Picker.Item key={client.id} label={client.name} value={client.id} />
+                  ))}
+                </Picker>
+              </View>
+
+              {/* Firm Selection */}
+              <Text style={styles.label}>Firm *</Text>
+              <View style={[styles.pickerContainer, !selectedClientId && styles.disabledPicker]}>
+                <Picker
+                  selectedValue={formData.firmId}
+                  onValueChange={(value) => setFormData({ ...formData, firmId: value })}
+                  enabled={!!selectedClientId}
+                  style={styles.picker}
+                >
+                  <Picker.Item 
+                    label={!selectedClientId ? "Select a client first" : filteredFirms.length === 0 ? "No firms for this client" : "Select Firm"} 
+                    value="" 
+                  />
+                  {filteredFirms.map(firm => (
+                    <Picker.Item key={firm.id} label={firm.name} value={firm.id.toString()} />
+                  ))}
+                </Picker>
+              </View>
+              {selectedClientId && filteredFirms.length === 0 && (
+                <Text style={styles.warningText}>This client has no firms. Add a firm first.</Text>
+              )}
+
+              {/* Amount */}
+              <Text style={styles.label}>Amount (₹) *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.amount}
+                onChangeText={(text) => setFormData({ ...formData, amount: text })}
+                placeholder="10000"
+                keyboardType="numeric"
+              />
+
+              {/* Tax Amount */}
+              <Text style={styles.label}>Tax Amount (₹)</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.taxAmount}
+                onChangeText={(text) => setFormData({ ...formData, taxAmount: text })}
+                placeholder="1800"
+                keyboardType="numeric"
+              />
+
+              {/* Due Date */}
+              <Text style={styles.label}>Due Date * (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.dueDate}
+                onChangeText={(text) => setFormData({ ...formData, dueDate: text })}
+                placeholder="2025-01-31"
+              />
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={styles.cancelButton} 
+                onPress={() => { setShowAddModal(false); resetForm(); }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.submitButton, submitting && styles.disabledButtonSubmit]} 
+                onPress={handleSubmit}
+                disabled={submitting}
+              >
+                <Text style={styles.submitButtonText}>
+                  {submitting ? 'Creating...' : 'Create Invoice'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -212,6 +400,7 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#0f172a', padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   backButton: { color: '#0ea5e9', fontSize: 16, fontWeight: '600' },
   title: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
+  addButton: { color: '#10b981', fontSize: 16, fontWeight: '600' },
   filters: { backgroundColor: 'white', padding: 12, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f1f5f9', marginRight: 8 },
   filterChipActive: { backgroundColor: '#0ea5e9' },
@@ -235,4 +424,26 @@ const styles = StyleSheet.create({
   payButtonText: { color: 'white', fontSize: 14, fontWeight: '600' },
   disabledButton: { backgroundColor: '#94a3b8', opacity: 0.6 },
   emptyText: { textAlign: 'center', color: '#94a3b8', marginTop: 32 },
+  
+  // Modal styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
+  closeButton: { fontSize: 20, color: '#64748b', padding: 4 },
+  modalBody: { padding: 16 },
+  modalFooter: { flexDirection: 'row', padding: 16, gap: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  
+  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
+  input: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 16 },
+  pickerContainer: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, overflow: 'hidden' },
+  disabledPicker: { backgroundColor: '#e5e7eb' },
+  picker: { height: 50 },
+  warningText: { color: '#f59e0b', fontSize: 12, marginTop: 4 },
+  
+  cancelButton: { flex: 1, backgroundColor: '#e5e7eb', padding: 14, borderRadius: 8, alignItems: 'center' },
+  cancelButtonText: { color: '#374151', fontSize: 16, fontWeight: '600' },
+  submitButton: { flex: 1, backgroundColor: '#0ea5e9', padding: 14, borderRadius: 8, alignItems: 'center' },
+  submitButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
+  disabledButtonSubmit: { opacity: 0.6 },
 });

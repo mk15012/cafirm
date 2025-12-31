@@ -43,11 +43,7 @@ export default function InvoiceDetailScreen() {
   const [markingPaid, setMarkingPaid] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/auth/login');
-      return;
-    }
-    if (params.id) {
+    if (isAuthenticated && params.id) {
       loadInvoice();
     }
   }, [params.id, isAuthenticated]);
@@ -165,7 +161,7 @@ ${invoice.createdBy.email}`;
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/invoices')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Invoice Details</Text>
@@ -183,7 +179,7 @@ ${invoice.createdBy.email}`;
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/invoices')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Invoice Details</Text>
@@ -208,7 +204,7 @@ ${invoice.createdBy.email}`;
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadInvoice} />}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/invoices')}>
           <Text style={styles.backButton}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Invoice Details</Text>

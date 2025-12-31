@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import AppLayout from '@/components/layout/AppLayout';
-import { CheckSquare, Plus, Filter, X, AlertCircle, Calendar, User, Building2, Clock } from 'lucide-react';
+import { CheckSquare, Plus, Filter, X, AlertCircle, Calendar, User, Building2, Clock, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Task {
   id: number;
@@ -25,16 +26,29 @@ interface Task {
   createdAt: string;
 }
 
+interface Firm {
+  id: number;
+  name: string;
+  client: { id: number; name: string };
+}
+
+interface Client {
+  id: number;
+  name: string;
+}
+
 export default function TasksPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading, initializeAuth } = useAuthStore();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [firms, setFirms] = useState<Array<{ id: string; name: string }>>([]);
+  const [firms, setFirms] = useState<Firm[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ status: '', firmId: '', assignedToId: '' });
+  const [selectedClientId, setSelectedClientId] = useState('');
   const [formData, setFormData] = useState({
     firmId: '',
     title: '',
@@ -43,6 +57,12 @@ export default function TasksPage() {
     priority: 'MEDIUM',
     dueDate: '',
   });
+
+  // Filter firms based on selected client
+  const filteredFirms = useMemo(() => {
+    if (!selectedClientId) return [];
+    return firms.filter(firm => firm.client.id === parseInt(selectedClientId));
+  }, [firms, selectedClientId]);
 
   useEffect(() => {
     initializeAuth();
@@ -56,6 +76,7 @@ export default function TasksPage() {
       }
       loadTasks();
       loadFirms();
+      loadClients();
       loadUsers();
     }
   }, [isAuthenticated, isLoading, router, filters]);
@@ -85,6 +106,15 @@ export default function TasksPage() {
     }
   };
 
+  const loadClients = async () => {
+    try {
+      const response = await api.get('/clients');
+      setClients(response.data);
+    } catch (error) {
+      console.error('Failed to load clients:', error);
+    }
+  };
+
   const loadUsers = async () => {
     try {
       const response = await api.get('/users');
@@ -94,24 +124,33 @@ export default function TasksPage() {
     }
   };
 
+  const handleClientChange = (clientId: string) => {
+    setSelectedClientId(clientId);
+    // Reset firm selection when client changes
+    setFormData({ ...formData, firmId: '' });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await api.post('/tasks', formData);
+      toast.success('Task created successfully!');
       setShowForm(false);
+      setSelectedClientId('');
       setFormData({ firmId: '', title: '', description: '', assignedToId: '', priority: 'MEDIUM', dueDate: '' });
       loadTasks();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create task');
+      toast.error(error.response?.data?.error || 'Failed to create task');
     }
   };
 
   const handleStatusChange = async (taskId: number, newStatus: string) => {
     try {
       await api.put(`/tasks/${taskId}`, { status: newStatus });
+      toast.success('Task status updated!');
       loadTasks();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to update task');
+      toast.error(error.response?.data?.error || 'Failed to update task');
     }
   };
 
@@ -283,6 +322,7 @@ export default function TasksPage() {
             <button
               onClick={() => {
                 setShowForm(false);
+                setSelectedClientId('');
                 setFormData({ firmId: '', title: '', description: '', assignedToId: '', priority: 'MEDIUM', dueDate: '' });
               }}
               className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
@@ -291,23 +331,66 @@ export default function TasksPage() {
             </button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Client Selection - First */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Firm *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <span className="flex items-center gap-1">
+                    <Users className="w-4 h-4" />
+                    Client *
+                  </span>
+                </label>
+                <select
+                  required
+                  value={selectedClientId}
+                  onChange={(e) => handleClientChange(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">Select Client First</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {/* Firm Selection - Filtered by Client */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <span className="flex items-center gap-1">
+                    <Building2 className="w-4 h-4" />
+                    Firm *
+                  </span>
+                </label>
                 <select
                   required
                   value={formData.firmId}
                   onChange={(e) => setFormData({ ...formData, firmId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  disabled={!selectedClientId}
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                    !selectedClientId ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
                 >
-                  <option value="">Select Firm</option>
-                  {firms.map((firm) => (
+                  <option value="">
+                    {!selectedClientId 
+                      ? 'Select a client first' 
+                      : filteredFirms.length === 0 
+                        ? 'No firms for this client' 
+                        : 'Select Firm'}
+                  </option>
+                  {filteredFirms.map((firm) => (
                     <option key={firm.id} value={firm.id}>
                       {firm.name}
                     </option>
                   ))}
                 </select>
+                {selectedClientId && filteredFirms.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    This client has no firms. Please add a firm first.
+                  </p>
+                )}
               </div>
+              {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Title *</label>
                 <input
@@ -355,7 +438,8 @@ export default function TasksPage() {
                   required
                   value={formData.dueDate}
                   onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer"
+                  style={{ colorScheme: 'light', backgroundColor: '#ffffff', color: '#111827' }}
                 />
               </div>
             </div>
@@ -380,6 +464,7 @@ export default function TasksPage() {
                 type="button"
                 onClick={() => {
                   setShowForm(false);
+                  setSelectedClientId('');
                   setFormData({ firmId: '', title: '', description: '', assignedToId: '', priority: 'MEDIUM', dueDate: '' });
                 }}
                 className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"

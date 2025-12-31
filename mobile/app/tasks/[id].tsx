@@ -57,11 +57,9 @@ export default function TaskDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/auth/login');
-      return;
+    if (isAuthenticated && params.id) {
+      loadTask();
     }
-    loadTask();
   }, [params.id, isAuthenticated]);
 
   const loadTask = async () => {
@@ -127,7 +125,7 @@ export default function TaskDetailScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/tasks')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Task Details</Text>
@@ -145,7 +143,7 @@ export default function TaskDetailScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/tasks')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Task Details</Text>
@@ -169,7 +167,7 @@ export default function TaskDetailScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadTask} />}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/tasks')}>
           <Text style={styles.backButton}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Task Details</Text>

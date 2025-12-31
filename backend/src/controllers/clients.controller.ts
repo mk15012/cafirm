@@ -20,45 +20,48 @@ export async function getClients(req: Request, res: Response) {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     // Get accessible firm IDs based on role
-    let accessibleFirmIds: string[] = [];
+    let accessibleFirmIds: number[] = [];
     
-    if (user.role === 'CA') {
-      // CA sees all firms created by anyone in their organization
+    if (user.role === 'CA' || user.role === 'MANAGER') {
+      // CA and Manager see all firms in their organization
       const orgFirms = await prisma.firm.findMany({
         where: { createdById: { in: orgUserIds } },
         select: { id: true },
       });
       accessibleFirmIds = orgFirms.map(f => f.id);
-    } else if (user.role === 'MANAGER') {
-      const teamUserIds = await getTeamUserIds(user.userId);
-      const mappings = await prisma.userFirmMapping.findMany({
-        where: { userId: { in: teamUserIds } },
-        select: { firmId: true },
-      });
-      accessibleFirmIds = [...new Set(mappings.map(m => m.firmId))];
     } else {
-      // Staff only see firms they're assigned to
+      // Staff only see firms they're assigned to OR firms of tasks assigned to them
       const mappings = await prisma.userFirmMapping.findMany({
         where: { userId: user.userId },
         select: { firmId: true },
       });
-      accessibleFirmIds = mappings.map(m => m.firmId);
+      const assignedTasks = await prisma.task.findMany({
+        where: { assignedToId: user.userId },
+        select: { firmId: true },
+      });
+      const firmIdsFromMappings = mappings.map(m => m.firmId);
+      const firmIdsFromTasks = assignedTasks.map(t => t.firmId);
+      accessibleFirmIds = [...new Set([...firmIdsFromMappings, ...firmIdsFromTasks])];
     }
 
-    const clients = await prisma.client.findMany({
-      where: {
-        createdById: { in: orgUserIds }, // Only clients created by this CA's organization
-        firms: {
-          some: {
-            id: { in: accessibleFirmIds },
+    // For CA/Manager: show all clients in their organization
+    // For Staff: show only clients that have firms they can access
+    const whereClause = (user.role === 'CA' || user.role === 'MANAGER')
+      ? { createdById: { in: orgUserIds } }
+      : {
+          createdById: { in: orgUserIds },
+          firms: {
+            some: {
+              id: { in: accessibleFirmIds },
+            },
           },
-        },
-      },
+        };
+
+    const clients = await prisma.client.findMany({
+      where: whereClause,
       include: {
         firms: {
-          where: {
-            id: { in: accessibleFirmIds },
-          },
+          where: user.role === 'CA' ? {} : { id: { in: accessibleFirmIds } },
           include: {
             _count: {
               select: {
@@ -73,11 +76,7 @@ export async function getClients(req: Request, res: Response) {
         },
         _count: {
           select: {
-            firms: {
-              where: {
-                id: { in: accessibleFirmIds },
-              },
-            },
+            firms: true,
           },
         },
       },

@@ -8,8 +8,10 @@ import { format } from 'date-fns';
 import api from '@/lib/api';
 import {
   CheckSquare, Clock, AlertCircle, FileText, Users, Building2,
-  DollarSign, Receipt, Calendar, Activity, User, LogOut, Menu, X, Shield, Lock, Eye, EyeOff, Mail, Phone
+  DollarSign, Receipt, Calendar, Activity, User, LogOut, Menu, X, Shield, Lock, Eye, EyeOff, Mail, Phone,
+  Calculator, Key, Wrench
 } from 'lucide-react';
+import SubscriptionBadge from '@/components/SubscriptionBadge';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -34,7 +36,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
     notes: '',
   });
   const [clients, setClients] = useState<Array<{ id: string; name: string; email?: string }>>([]);
-  const [firms, setFirms] = useState<Array<{ id: string; name: string; clientId: string }>>([]);
+  const [firms, setFirms] = useState<Array<{ id: string; name: string; clientId?: number; client?: { id: number; name: string } }>>([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [submittingMeeting, setSubmittingMeeting] = useState(false);
   
@@ -123,14 +125,18 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
 
   // Filter firms based on selected client
   const filteredFirms = meetingData.clientId
-    ? firms.filter((firm) => firm.clientId === meetingData.clientId)
+    ? firms.filter((firm) => {
+        const firmClientId = firm.client?.id || firm.clientId;
+        return String(firmClientId) === String(meetingData.clientId);
+      })
     : firms;
 
   const loadProfile = async () => {
     if (!user?.id) return;
     try {
       setLoadingProfile(true);
-      const response = await api.get(`/users/${user.id}`);
+      // Use /auth/me endpoint which works for any authenticated user
+      const response = await api.get('/auth/me');
       setProfile(response.data);
     } catch (error: any) {
       console.error('Failed to load profile:', error);
@@ -199,7 +205,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                 <Building2 className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="font-bold text-lg">CA Firm</h1>
+                <h1 className="font-bold text-lg">CA Firm Pro</h1>
                 <p className="text-xs text-slate-400">Management System</p>
               </div>
             </div>
@@ -230,6 +236,9 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
             <NavLink href="/approvals" icon={Clock} active={pathname === '/approvals'}>
               Approvals
             </NavLink>
+            <NavLink href="/compliance" icon={Calendar} active={pathname === '/compliance'}>
+              Compliance
+            </NavLink>
             {user?.role === 'CA' && (
               <>
                 <NavLink href="/users" icon={User} active={pathname === '/users'}>
@@ -240,7 +249,25 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                 </NavLink>
               </>
             )}
+
+            {/* Tools Section */}
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 mt-6 px-3">
+              TOOLS
+            </p>
+            <NavLink href="/tools/tax-calculator" icon={Calculator} active={pathname === '/tools/tax-calculator'}>
+              Tax Calculator
+            </NavLink>
+            <NavLink href="/tools/credentials" icon={Key} active={pathname === '/tools/credentials'}>
+              Portal Credentials
+            </NavLink>
           </nav>
+
+          {/* Subscription Status */}
+          {user?.role === 'CA' && (
+            <div className="p-4 border-t border-slate-800">
+              <SubscriptionBadge />
+            </div>
+          )}
 
           {user?.role === 'CA' && (
             <div className="p-4 border-t border-slate-800">
@@ -369,14 +396,14 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                 </div>
               </Link>
               <Link
-                href="/dashboard"
+                href="/tools/credentials"
                 onClick={() => setShowCAAccess(false)}
                 className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                <Activity className="w-5 h-5 text-primary-600" />
+                <Key className="w-5 h-5 text-primary-600" />
                 <div>
-                  <p className="font-medium text-gray-900">Dashboard</p>
-                  <p className="text-sm text-gray-500">View all metrics</p>
+                  <p className="font-medium text-gray-900">Portal Credentials</p>
+                  <p className="text-sm text-gray-500">Store client govt portal logins</p>
                 </div>
               </Link>
             </div>
@@ -440,18 +467,22 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
               {meetingData.clientId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Firm (Optional)</label>
-                  <select
-                    value={meetingData.firmId}
-                    onChange={(e) => setMeetingData({ ...meetingData, firmId: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Select a firm...</option>
-                    {filteredFirms.map((firm) => (
-                      <option key={firm.id} value={firm.id}>
-                        {firm.name}
-                      </option>
-                    ))}
-                  </select>
+                  {filteredFirms.length > 0 ? (
+                    <select
+                      value={meetingData.firmId}
+                      onChange={(e) => setMeetingData({ ...meetingData, firmId: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="">Select a firm...</option>
+                      {filteredFirms.map((firm) => (
+                        <option key={firm.id} value={firm.id}>
+                          {firm.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic py-2">No firms found for this client. Create a firm first.</p>
+                  )}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
@@ -463,7 +494,8 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                     min={new Date().toISOString().split('T')[0]}
                     value={meetingData.date}
                     onChange={(e) => setMeetingData({ ...meetingData, date: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer"
+                    style={{ colorScheme: 'light', backgroundColor: '#ffffff', color: '#111827' }}
                   />
                 </div>
                 <div>
@@ -473,7 +505,8 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                     required
                     value={meetingData.time}
                     onChange={(e) => setMeetingData({ ...meetingData, time: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer"
+                    style={{ colorScheme: 'light', backgroundColor: '#ffffff', color: '#111827' }}
                   />
                 </div>
               </div>

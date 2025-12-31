@@ -8,8 +8,11 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { 
   CheckSquare, Clock, AlertCircle, FileText, Users, Building2, 
-  DollarSign, Receipt, Calendar, Activity, User, LogOut, Menu, X, Shield
+  DollarSign, Receipt, Calendar, Activity, User, LogOut, Menu, X, Shield,
+  Calculator, Key
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import SubscriptionBadge from '@/components/SubscriptionBadge';
 
 interface DashboardMetrics {
   activeTasks: number;
@@ -74,7 +77,7 @@ export default function DashboardPage() {
     notes: '',
   });
   const [clients, setClients] = useState<Array<{ id: string; name: string; email?: string }>>([]);
-  const [firms, setFirms] = useState<Array<{ id: string; name: string; clientId: string }>>([]);
+  const [firms, setFirms] = useState<Array<{ id: string; name: string; clientId?: number; client?: { id: number; name: string } }>>([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [submittingMeeting, setSubmittingMeeting] = useState(false);
 
@@ -126,14 +129,14 @@ export default function DashboardPage() {
       }
 
       // Show success message
-      alert('Meeting scheduled successfully! Google Calendar link opened in new tab.');
+      toast.success('Meeting scheduled successfully!');
 
       // Reset form and close modal
       setMeetingData({ title: '', date: '', time: '', clientId: '', firmId: '', location: '', notes: '' });
       setShowMeetingModal(false);
     } catch (error: any) {
       console.error('Failed to create meeting:', error);
-      alert(error.response?.data?.error || 'Failed to schedule meeting. Please try again.');
+      toast.error(error.response?.data?.error || 'Failed to schedule meeting. Please try again.');
     } finally {
       setSubmittingMeeting(false);
     }
@@ -141,7 +144,10 @@ export default function DashboardPage() {
 
   // Filter firms based on selected client
   const filteredFirms = meetingData.clientId
-    ? firms.filter((firm) => firm.clientId === meetingData.clientId)
+    ? firms.filter((firm) => {
+        const firmClientId = firm.client?.id || firm.clientId;
+        return String(firmClientId) === String(meetingData.clientId);
+      })
     : firms;
 
   useEffect(() => {
@@ -239,7 +245,7 @@ export default function DashboardPage() {
                 <Building2 className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="font-bold text-lg">CA Firm</h1>
+                <h1 className="font-bold text-lg">CA Firm Pro</h1>
                 <p className="text-xs text-slate-400">Management System</p>
               </div>
             </div>
@@ -264,7 +270,27 @@ export default function DashboardPage() {
                 <NavLink href="/activity-logs" icon={Activity}>Activity Log</NavLink>
               </>
             )}
+
+            {/* Tools Section */}
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 mt-6 px-3">
+              TOOLS
+            </p>
+            <NavLink href="/tools/tax-calculator" icon={Calculator}>
+              Tax Calculator
+            </NavLink>
+            {user?.role === 'CA' && (
+              <NavLink href="/tools/credentials" icon={Key}>
+                Portal Credentials
+              </NavLink>
+            )}
           </nav>
+
+          {/* Subscription Status */}
+          {user?.role === 'CA' && (
+            <div className="p-4 border-t border-slate-800">
+              <SubscriptionBadge />
+            </div>
+          )}
 
           {user?.role === 'CA' && (
             <div className="p-4 border-t border-slate-800">
@@ -339,7 +365,7 @@ export default function DashboardPage() {
           {/* Welcome Section */}
           <div className="mb-8 bg-gradient-to-r from-primary-600 to-primary-800 rounded-xl shadow-lg p-6 text-white">
             <h1 className="text-3xl font-bold mb-2">
-              {getCurrentGreeting()}, {user?.name}!
+              {getCurrentGreeting()}, {user?.name} !!
             </h1>
             <p className="text-primary-100 text-lg">
               Here's what's happening with your firm today • {getCurrentDate()}
@@ -407,7 +433,7 @@ export default function DashboardPage() {
                 iconColor="text-cyan-600"
                 bgColor="bg-cyan-50"
               />
-              {(user?.role === 'CA' || user?.role === 'MANAGER') && (
+              {user?.role === 'CA' && (
                 <MetricCard
                   icon={DollarSign}
                   title="Monthly Revenue"
@@ -419,14 +445,16 @@ export default function DashboardPage() {
                   bgColor="bg-emerald-50"
                 />
               )}
-              <MetricCard
-                icon={Receipt}
-                title="Unpaid Invoices"
-                value={metrics.unpaidInvoices}
-                description="Total outstanding"
-                iconColor="text-orange-600"
-                bgColor="bg-orange-50"
-              />
+              {(user?.role === 'CA' || user?.role === 'MANAGER') && (
+                <MetricCard
+                  icon={Receipt}
+                  title="Unpaid Invoices"
+                  value={metrics.unpaidInvoices}
+                  description="Total outstanding"
+                  iconColor="text-orange-600"
+                  bgColor="bg-orange-50"
+                />
+              )}
             </div>
           )}
 
@@ -612,18 +640,22 @@ export default function DashboardPage() {
               {meetingData.clientId && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Firm (Optional)</label>
-                  <select
-                    value={meetingData.firmId}
-                    onChange={(e) => setMeetingData({ ...meetingData, firmId: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Select a firm...</option>
-                    {filteredFirms.map((firm) => (
-                      <option key={firm.id} value={firm.id}>
-                        {firm.name}
-                      </option>
-                    ))}
-                  </select>
+                  {filteredFirms.length > 0 ? (
+                    <select
+                      value={meetingData.firmId}
+                      onChange={(e) => setMeetingData({ ...meetingData, firmId: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="">Select a firm...</option>
+                      {filteredFirms.map((firm) => (
+                        <option key={firm.id} value={firm.id}>
+                          {firm.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic py-2">No firms found for this client. Create a firm first.</p>
+                  )}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
@@ -635,7 +667,8 @@ export default function DashboardPage() {
                     min={new Date().toISOString().split('T')[0]}
                     value={meetingData.date}
                     onChange={(e) => setMeetingData({ ...meetingData, date: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer"
+                    style={{ colorScheme: 'light', backgroundColor: '#ffffff', color: '#111827' }}
                   />
                 </div>
                 <div>
@@ -645,7 +678,8 @@ export default function DashboardPage() {
                     required
                     value={meetingData.time}
                     onChange={(e) => setMeetingData({ ...meetingData, time: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer"
+                    style={{ colorScheme: 'light', backgroundColor: '#ffffff', color: '#111827' }}
                   />
                 </div>
               </div>

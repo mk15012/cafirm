@@ -47,11 +47,9 @@ export default function ClientDetailScreen() {
   const isCA = user?.role === 'CA';
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/auth/login');
-      return;
+    if (isAuthenticated && params.id) {
+      loadClient();
     }
-    loadClient();
   }, [params.id, isAuthenticated]);
 
   const loadClient = async () => {
@@ -87,7 +85,7 @@ export default function ClientDetailScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/clients')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Client Details</Text>
@@ -105,7 +103,7 @@ export default function ClientDetailScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/clients')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Client Details</Text>
@@ -124,7 +122,7 @@ export default function ClientDetailScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadClient} />}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/clients')}>
           <Text style={styles.backButton}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Client Details</Text>

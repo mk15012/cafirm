@@ -35,11 +35,9 @@ export default function ApprovalsScreen() {
   const canApprove = user?.role === 'CA' || user?.role === 'MANAGER';
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/auth/login');
-      return;
+    if (isAuthenticated) {
+      loadApprovals();
     }
-    loadApprovals();
   }, [isAuthenticated, filters]);
 
   const loadApprovals = async () => {
@@ -108,7 +106,7 @@ export default function ApprovalsScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadApprovals} colors={['#0ea5e9']} />}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/dashboard')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Approvals</Text>

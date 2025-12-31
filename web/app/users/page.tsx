@@ -6,6 +6,7 @@ import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import AppLayout from '@/components/layout/AppLayout';
 import { User, Plus, X, Mail, Phone, Shield, UserCheck, Edit, Trash2, Users as UsersIcon } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface UserData {
   id: string;
@@ -69,15 +70,17 @@ export default function UsersPage() {
       if (editingUser) {
         const { password, ...updateData } = formData;
         await api.put(`/users/${editingUser.id}`, updateData);
+        toast.success('User updated successfully!');
       } else {
         await api.post('/users', formData);
+        toast.success('User created successfully!');
       }
       setShowForm(false);
       setEditingUser(null);
       setFormData({ name: '', email: '', password: '', phone: '', role: 'STAFF', reportsToId: '' });
       loadUsers();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to save user');
+      toast.error(error.response?.data?.error || 'Failed to save user');
     }
   };
 
@@ -98,9 +101,25 @@ export default function UsersPage() {
     if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
     try {
       await api.delete(`/users/${id}`);
+      toast.success('User deleted successfully!');
       loadUsers();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to delete user');
+      toast.error(error.response?.data?.error || 'Failed to delete user');
+    }
+  };
+
+  const handleToggleStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const action = newStatus === 'ACTIVE' ? 'activate' : 'deactivate';
+    
+    if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+    
+    try {
+      await api.put(`/users/${id}`, { status: newStatus });
+      toast.success(`User ${newStatus === 'ACTIVE' ? 'activated' : 'deactivated'} successfully!`);
+      loadUsers();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to update user status');
     }
   };
 
@@ -383,12 +402,24 @@ export default function UsersPage() {
                 )}
               </div>
 
-              <div className="pt-4 border-t border-gray-200">
+              <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
                 <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                  userData.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  userData.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                 }`}>
                   {userData.status}
                 </span>
+                {userData.id !== user?.id && (
+                  <button
+                    onClick={() => handleToggleStatus(userData.id, userData.status)}
+                    className={`text-xs font-medium px-2 py-1 rounded transition-colors ${
+                      userData.status === 'ACTIVE' 
+                        ? 'text-red-600 hover:bg-red-50' 
+                        : 'text-green-600 hover:bg-green-50'
+                    }`}
+                  >
+                    {userData.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                  </button>
+                )}
               </div>
             </div>
           ))}

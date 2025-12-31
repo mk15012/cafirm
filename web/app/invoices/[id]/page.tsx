@@ -19,6 +19,7 @@ import {
   CreditCard,
   Mail
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Invoice {
   id: number;
@@ -91,9 +92,9 @@ export default function InvoiceDetailPage() {
       setMarkingPaid(true);
       await api.put(`/invoices/${params.id}/pay`, {});
       loadInvoice();
-      alert('Invoice marked as paid successfully');
+      toast.success('Invoice marked as paid!');
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to mark as paid');
+      toast.error(error.response?.data?.error || 'Failed to mark as paid');
     } finally {
       setMarkingPaid(false);
     }
@@ -104,7 +105,7 @@ export default function InvoiceDetailPage() {
     
     const clientEmail = invoice.firm.client.email;
     if (!clientEmail) {
-      alert('Client email not found. Please add email to the client profile first.');
+      toast.error('Client email not found. Please add email to the client profile first.');
       return;
     }
 

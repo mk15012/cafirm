@@ -21,7 +21,7 @@ export async function getDocuments(req: Request, res: Response) {
     // Get all user IDs in this CA's organization
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
-    let accessibleFirmIds: string[] = [];
+    let accessibleFirmIds: number[] = [];
     
     if (user.role === 'CA') {
       // CA sees all firms created by anyone in their organization
@@ -56,11 +56,15 @@ export async function getDocuments(req: Request, res: Response) {
 
     const { firmId, taskId, documentType } = req.query;
 
+    // Parse filter IDs to integers
+    const parsedFirmId = firmId ? parseInt(firmId as string, 10) : null;
+    const parsedTaskId = taskId ? parseInt(taskId as string, 10) : null;
+
     const documents = await prisma.document.findMany({
       where: {
         firmId: { in: accessibleFirmIds },
-        ...(firmId && { firmId: firmId as string }),
-        ...(taskId && { taskId: taskId as string }),
+        ...(parsedFirmId && !isNaN(parsedFirmId) && { firmId: parsedFirmId }),
+        ...(parsedTaskId && !isNaN(parsedTaskId) && { taskId: parsedTaskId }),
         ...(documentType && { documentType: documentType as any }),
       },
       include: {
@@ -173,6 +177,14 @@ export async function uploadDocument(req: Request, res: Response) {
       return res.status(400).json({ error: 'Firm ID and document type are required' });
     }
 
+    // Parse IDs to integers
+    const parsedFirmId = typeof firmId === 'string' ? parseInt(firmId, 10) : firmId;
+    const parsedTaskId = taskId ? (typeof taskId === 'string' ? parseInt(taskId, 10) : taskId) : null;
+
+    if (isNaN(parsedFirmId)) {
+      return res.status(400).json({ error: 'Invalid firm ID' });
+    }
+
     // Get the root CA ID for this user's organization
     const caId = await getRootCAId(user.userId);
     if (!caId) {
@@ -184,7 +196,7 @@ export async function uploadDocument(req: Request, res: Response) {
 
     // Verify firm belongs to this CA's organization
     const firm = await prisma.firm.findUnique({
-      where: { id: firmId },
+      where: { id: parsedFirmId },
       select: { createdById: true },
     });
 
@@ -197,9 +209,9 @@ export async function uploadDocument(req: Request, res: Response) {
     }
 
     // If taskId provided, verify task belongs to organization
-    if (taskId) {
+    if (parsedTaskId && !isNaN(parsedTaskId)) {
       const task = await prisma.task.findUnique({
-        where: { id: taskId },
+        where: { id: parsedTaskId },
         include: { firm: { select: { createdById: true } } },
       });
       if (!task || !orgUserIds.includes(task.firm.createdById)) {
@@ -209,8 +221,8 @@ export async function uploadDocument(req: Request, res: Response) {
 
     const document = await prisma.document.create({
       data: {
-        firmId,
-        taskId: taskId || null,
+        firmId: parsedFirmId,
+        taskId: parsedTaskId || null,
         documentType: documentType as any,
         fileName: req.file.originalname,
         filePath: req.file.path,
@@ -242,6 +254,11 @@ export async function downloadDocument(req: Request, res: Response) {
     }
 
     const { id } = req.params;
+    const documentId = parseInt(id, 10);
+    
+    if (isNaN(documentId)) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
 
     // Get the root CA ID for this user's organization
     const caId = await getRootCAId(user.userId);
@@ -253,7 +270,7 @@ export async function downloadDocument(req: Request, res: Response) {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     const document = await prisma.document.findUnique({
-      where: { id },
+      where: { id: documentId },
     });
 
     if (!document) {
@@ -291,6 +308,11 @@ export async function deleteDocument(req: Request, res: Response) {
     }
 
     const { id } = req.params;
+    const documentId = parseInt(id, 10);
+    
+    if (isNaN(documentId)) {
+      return res.status(400).json({ error: 'Invalid document ID' });
+    }
 
     // Get the root CA ID for this user's organization
     const caId = await getRootCAId(user.userId);
@@ -302,7 +324,7 @@ export async function deleteDocument(req: Request, res: Response) {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     const document = await prisma.document.findUnique({
-      where: { id },
+      where: { id: documentId },
     });
 
     if (!document) {
@@ -326,7 +348,7 @@ export async function deleteDocument(req: Request, res: Response) {
     }
 
     await prisma.document.delete({
-      where: { id },
+      where: { id: documentId },
     });
 
     res.json({ message: 'Document deleted successfully' });

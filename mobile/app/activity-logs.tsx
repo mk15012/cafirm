@@ -25,10 +25,8 @@ export default function ActivityLogsScreen() {
   const [filters, setFilters] = useState({ entityType: '' });
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/auth/login');
-      return;
-    }
+    if (!isAuthenticated) return;
+    
     // Only CA can access this page
     if (user?.role !== 'CA') {
       Alert.alert('Access Denied', 'Only CA can view activity logs');
@@ -106,7 +104,7 @@ export default function ActivityLogsScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadLogs} colors={['#0ea5e9']} />}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/dashboard')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Activity Logs</Text>

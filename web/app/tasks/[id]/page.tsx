@@ -20,6 +20,7 @@ import {
   XCircle,
   Edit
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Task {
   id: number;
@@ -107,9 +108,10 @@ export default function TaskDetailPage() {
     try {
       setUpdatingStatus(true);
       await api.put(`/tasks/${params.id}`, { status: newStatus });
+      toast.success('Task status updated!');
       loadTask();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to update task status');
+      toast.error(error.response?.data?.error || 'Failed to update task status');
     } finally {
       setUpdatingStatus(false);
     }

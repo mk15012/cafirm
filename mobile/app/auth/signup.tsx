@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function SignupScreen() {
   const [name, setName] = useState('');
@@ -54,8 +55,10 @@ export default function SignupScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Text style={styles.logo}>📊</Text>
-            <Text style={styles.title}>CA Firm Management</Text>
+            <View style={styles.logoContainer}>
+              <MaterialCommunityIcons name="office-building" size={32} color="#ffffff" />
+            </View>
+            <Text style={styles.title}>CA Firm Pro</Text>
             <Text style={styles.subtitle}>Create your account</Text>
           </View>
 
@@ -147,9 +150,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
-  logo: {
-    fontSize: 48,
+  logoContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: '#0ea5e9',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 12,
+    shadowColor: '#0ea5e9',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   title: {
     fontSize: 24,

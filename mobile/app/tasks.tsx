@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, RefreshControl, ActivityIndicator } from 'react-native';
+import { useEffect, useState, useMemo } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, RefreshControl, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Picker } from '@react-native-picker/picker';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import { format } from 'date-fns';
@@ -17,20 +18,59 @@ interface Task {
   assignedTo: { id: number; name: string };
 }
 
+interface Client {
+  id: number;
+  name: string;
+}
+
+interface Firm {
+  id: number;
+  name: string;
+  client: { id: number; name: string };
+}
+
+interface User {
+  id: number;
+  name: string;
+}
+
 export default function TasksScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [firms, setFirms] = useState<Firm[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState({ status: '' });
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  
+  // Form state
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    firmId: '',
+    title: '',
+    description: '',
+    assignedToId: '',
+    priority: 'MEDIUM',
+    dueDate: '',
+  });
+
+  // Filter firms based on selected client
+  const filteredFirms = useMemo(() => {
+    if (!selectedClientId) return [];
+    return firms.filter(firm => firm.client.id === selectedClientId);
+  }, [firms, selectedClientId]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/auth/login');
-      return;
+    if (isAuthenticated) {
+      loadTasks();
+      loadClients();
+      loadFirms();
+      loadUsers();
     }
-    loadTasks();
   }, [isAuthenticated, filters]);
 
   const loadTasks = async () => {
@@ -45,6 +85,70 @@ export default function TasksScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const loadClients = async () => {
+    try {
+      const response = await api.get('/clients');
+      setClients(response.data);
+    } catch (error) {
+      console.error('Failed to load clients:', error);
+    }
+  };
+
+  const loadFirms = async () => {
+    try {
+      const response = await api.get('/firms');
+      setFirms(response.data);
+    } catch (error) {
+      console.error('Failed to load firms:', error);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const response = await api.get('/users');
+      setUsers(response.data);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    }
+  };
+
+  const handleClientChange = (clientId: number | null) => {
+    setSelectedClientId(clientId);
+    setFormData({ ...formData, firmId: '' });
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.firmId || !formData.title || !formData.assignedToId || !formData.dueDate) {
+      Alert.alert('Error', 'Please fill all required fields');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await api.post('/tasks', formData);
+      Alert.alert('Success', 'Task created successfully!');
+      setShowAddModal(false);
+      resetForm();
+      loadTasks();
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to create task');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedClientId(null);
+    setFormData({
+      firmId: '',
+      title: '',
+      description: '',
+      assignedToId: '',
+      priority: 'MEDIUM',
+      dueDate: '',
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -72,11 +176,13 @@ export default function TasksScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadTasks} colors={['#0ea5e9']} />}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/dashboard')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Tasks</Text>
-          <View style={{ width: 60 }} />
+          <TouchableOpacity onPress={() => setShowAddModal(true)}>
+            <Text style={styles.addButton}>+ Add</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Filters */}
@@ -109,6 +215,7 @@ export default function TasksScreen() {
                   <Text style={styles.statusBadgeText}>{task.status.replace('_', ' ')}</Text>
                 </View>
               </View>
+              <Text style={styles.cardSubtext}>Client: {task.firm.client.name}</Text>
               <Text style={styles.cardSubtext}>Firm: {task.firm.name}</Text>
               <Text style={styles.cardSubtext}>Assigned: {task.assignedTo.name}</Text>
               <View style={styles.cardFooter}>
@@ -122,6 +229,135 @@ export default function TasksScreen() {
           {tasks.length === 0 && <Text style={styles.emptyText}>No tasks found</Text>}
         </View>
       </ScrollView>
+
+      {/* Add Task Modal */}
+      <Modal visible={showAddModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Task</Text>
+              <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {/* Client Selection */}
+              <Text style={styles.label}>Client *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedClientId}
+                  onValueChange={(value) => handleClientChange(value)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select Client First" value={null} />
+                  {clients.map(client => (
+                    <Picker.Item key={client.id} label={client.name} value={client.id} />
+                  ))}
+                </Picker>
+              </View>
+
+              {/* Firm Selection */}
+              <Text style={styles.label}>Firm *</Text>
+              <View style={[styles.pickerContainer, !selectedClientId && styles.disabledPicker]}>
+                <Picker
+                  selectedValue={formData.firmId}
+                  onValueChange={(value) => setFormData({ ...formData, firmId: value })}
+                  enabled={!!selectedClientId}
+                  style={styles.picker}
+                >
+                  <Picker.Item 
+                    label={!selectedClientId ? "Select a client first" : filteredFirms.length === 0 ? "No firms for this client" : "Select Firm"} 
+                    value="" 
+                  />
+                  {filteredFirms.map(firm => (
+                    <Picker.Item key={firm.id} label={firm.name} value={firm.id.toString()} />
+                  ))}
+                </Picker>
+              </View>
+              {selectedClientId && filteredFirms.length === 0 && (
+                <Text style={styles.warningText}>This client has no firms. Add a firm first.</Text>
+              )}
+
+              {/* Title */}
+              <Text style={styles.label}>Title *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.title}
+                onChangeText={(text) => setFormData({ ...formData, title: text })}
+                placeholder="Enter task title"
+              />
+
+              {/* Assigned To */}
+              <Text style={styles.label}>Assign To *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={formData.assignedToId}
+                  onValueChange={(value) => setFormData({ ...formData, assignedToId: value })}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select User" value="" />
+                  {users.map(user => (
+                    <Picker.Item key={user.id} label={user.name} value={user.id.toString()} />
+                  ))}
+                </Picker>
+              </View>
+
+              {/* Priority */}
+              <Text style={styles.label}>Priority *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={formData.priority}
+                  onValueChange={(value) => setFormData({ ...formData, priority: value })}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="High" value="HIGH" />
+                  <Picker.Item label="Medium" value="MEDIUM" />
+                  <Picker.Item label="Low" value="LOW" />
+                </Picker>
+              </View>
+
+              {/* Due Date */}
+              <Text style={styles.label}>Due Date * (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.dueDate}
+                onChangeText={(text) => setFormData({ ...formData, dueDate: text })}
+                placeholder="2025-01-15"
+              />
+
+              {/* Description */}
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={formData.description}
+                onChangeText={(text) => setFormData({ ...formData, description: text })}
+                placeholder="Enter task description"
+                multiline
+                numberOfLines={3}
+              />
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={styles.cancelButton} 
+                onPress={() => { setShowAddModal(false); resetForm(); }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.submitButton, submitting && styles.disabledButton]} 
+                onPress={handleSubmit}
+                disabled={submitting}
+              >
+                <Text style={styles.submitButtonText}>
+                  {submitting ? 'Creating...' : 'Create Task'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -134,6 +370,7 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#0f172a', padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   backButton: { color: '#0ea5e9', fontSize: 16, fontWeight: '600' },
   title: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
+  addButton: { color: '#10b981', fontSize: 16, fontWeight: '600' },
   filters: { backgroundColor: 'white', padding: 12, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f1f5f9', marginRight: 8 },
   filterChipActive: { backgroundColor: '#0ea5e9' },
@@ -152,4 +389,27 @@ const styles = StyleSheet.create({
   priorityBadgeText: { color: 'white', fontSize: 10, fontWeight: '600' },
   dueDate: { fontSize: 12, color: '#94a3b8' },
   emptyText: { textAlign: 'center', color: '#94a3b8', marginTop: 32 },
+  
+  // Modal styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
+  closeButton: { fontSize: 20, color: '#64748b', padding: 4 },
+  modalBody: { padding: 16 },
+  modalFooter: { flexDirection: 'row', padding: 16, gap: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  
+  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
+  input: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 16 },
+  textArea: { minHeight: 80, textAlignVertical: 'top' },
+  pickerContainer: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, overflow: 'hidden' },
+  disabledPicker: { backgroundColor: '#e5e7eb' },
+  picker: { height: 50 },
+  warningText: { color: '#f59e0b', fontSize: 12, marginTop: 4 },
+  
+  cancelButton: { flex: 1, backgroundColor: '#e5e7eb', padding: 14, borderRadius: 8, alignItems: 'center' },
+  cancelButtonText: { color: '#374151', fontSize: 16, fontWeight: '600' },
+  submitButton: { flex: 1, backgroundColor: '#0ea5e9', padding: 14, borderRadius: 8, alignItems: 'center' },
+  submitButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
+  disabledButton: { opacity: 0.6 },
 });

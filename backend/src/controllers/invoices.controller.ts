@@ -169,6 +169,13 @@ export async function createInvoice(req: Request, res: Response) {
       return res.status(400).json({ error: 'Firm ID, amount, and due date are required' });
     }
 
+    // Parse firmId to integer
+    const parsedFirmId = typeof firmId === 'string' ? parseInt(firmId, 10) : firmId;
+
+    if (isNaN(parsedFirmId)) {
+      return res.status(400).json({ error: 'Invalid firm ID' });
+    }
+
     // Get the root CA ID for this user's organization
     const caId = await getRootCAId(user.userId);
     if (!caId) {
@@ -180,7 +187,7 @@ export async function createInvoice(req: Request, res: Response) {
 
     // Verify firm belongs to this CA's organization
     const firm = await prisma.firm.findUnique({
-      where: { id: firmId },
+      where: { id: parsedFirmId },
       select: { createdById: true },
     });
 
@@ -208,7 +215,7 @@ export async function createInvoice(req: Request, res: Response) {
 
     const invoice = await prisma.invoice.create({
       data: {
-        firmId,
+        firmId: parsedFirmId,
         invoiceNumber,
         amount,
         taxAmount: tax,

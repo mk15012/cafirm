@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
 
-export async function logActivity(
+// Middleware version for automatic logging
+export async function logActivityMiddleware(
   req: Request,
   res: Response,
   next: NextFunction
@@ -36,6 +37,31 @@ export async function logActivity(
   };
 
   next();
+}
+
+// Direct function for manual logging from controllers
+export async function logActivity(
+  userId: number,
+  actionType: string,
+  entityType: string,
+  entityId: number | string,
+  description: string,
+  ipAddress?: string
+) {
+  try {
+    await prisma.activityLog.create({
+      data: {
+        userId,
+        actionType,
+        entityType,
+        entityId: String(entityId),
+        description,
+        ipAddress: ipAddress || undefined,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to log activity:', error);
+  }
 }
 
 function getActionType(method: string): string {

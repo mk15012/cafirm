@@ -58,6 +58,20 @@ enum InvoiceStatus {
   PARTIAL
 }
 
+enum PlanType {
+  FREE
+  BASIC
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  TRIAL
+}
+
 model User {
   id            Int         @id @default(autoincrement())
   name          String
@@ -86,6 +100,8 @@ model User {
   activityLogs      ActivityLog[]
   firmAssignments   UserFirmMapping[] @relation("UserFirmMapping")
   firmAssignmentsCreated UserFirmMapping[] @relation("FirmAssignment")
+  createdCredentials ClientCredential[] @relation("CredentialCreator")
+  subscription       Subscription?      @relation("UserSubscription")
 
   @@index([email])
   @@index([role])
@@ -107,6 +123,7 @@ model Client {
   // Relations
   firms Firm[]
   meetings Meeting[]
+  credentials ClientCredential[]
 
   @@index([createdById])
 }
@@ -126,12 +143,32 @@ model Firm {
   createdById      Int
   createdBy        User     @relation("FirmCreator", fields: [createdById], references: [id])
 
+  // Business Details (for compliance calculation)
+  entityType        String?   // INDIVIDUAL, PROPRIETORSHIP, PARTNERSHIP, LLP, PRIVATE_LIMITED, PUBLIC_LIMITED
+  natureOfBusiness  String?   // GOODS, SERVICES, BOTH
+  state             String?   // For GST special category states
+  annualTurnover    Decimal?  @db.Decimal(15, 2)  // In rupees
+  financialYear     String?   // "2024-25"
+  
+  // Compliance Flags (set after CA review)
+  hasGST            Boolean   @default(false)
+  gstFrequency      String?   // MONTHLY, QUARTERLY
+  hasTDS            Boolean   @default(false)
+  hasITR            Boolean   @default(true)
+  itrType           String?   // ITR1, ITR3, ITR4, ITR5, ITR6, ITR7
+  itrDueDate        String?   // JULY_31, OCT_31, NOV_30 (based on audit)
+  hasTaxAudit       Boolean   @default(false)
+  hasAdvanceTax     Boolean   @default(false)
+  hasROC            Boolean   @default(false)
+  complianceNotes   String?   @db.Text
+
   // Relations
   tasks     Task[]
   documents Document[]
   invoices  Invoice[]
   meetings  Meeting[]
   userAssignments UserFirmMapping[]
+  credentials ClientCredential[]
 
   @@index([clientId])
   @@index([panNumber])
@@ -281,5 +318,100 @@ model Meeting {
   @@index([firmId])
   @@index([createdById])
   @@index([meetingDate])
+}
+
+// Government portal credentials for clients
+model ClientCredential {
+  id            Int      @id @default(autoincrement())
+  clientId      Int
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  firmId        Int?
+  firm          Firm?    @relation(fields: [firmId], references: [id], onDelete: SetNull)
+  portalName    String   // e.g., "Income Tax Portal", "GST Portal", "MCA Portal"
+  portalUrl     String?  // URL of the portal
+  username      String
+  password      String   // Encrypted in application layer
+  remarks       String?  // Any additional notes
+  lastUpdated   DateTime @default(now())
+  createdById   Int
+  createdBy     User     @relation("CredentialCreator", fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([firmId])
+  @@index([portalName])
+}
+
+// Subscription model for pricing tiers
+model Subscription {
+  id                Int                @id @default(autoincrement())
+  userId            Int                @unique
+  user              User               @relation("UserSubscription", fields: [userId], references: [id], onDelete: Cascade)
+  plan              PlanType           @default(FREE)
+  status            SubscriptionStatus @default(ACTIVE)
+  
+  // Billing details
+  billingCycle      String             @default("monthly") // monthly, yearly
+  priceInPaise      Int                @default(0)         // Amount in paise (₹499 = 49900)
+  
+  // Dates
+  startDate         DateTime           @default(now())
+  endDate           DateTime?
+  trialEndsAt       DateTime?
+  
+  // Usage tracking (current period)
+  clientsUsed       Int                @default(0)
+  firmsUsed         Int                @default(0)
+  usersUsed         Int                @default(1)
+  storageUsedMB     Int                @default(0)
+  credentialsUsed   Int                @default(0)
+  
+  // Payment info
+  lastPaymentDate   DateTime?
+  lastPaymentAmount Int?
+  paymentMethod     String?            // razorpay, upi, card, etc.
+  razorpayCustomerId String?
+  razorpaySubscriptionId String?
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([plan])
+  @@index([status])
+  @@index([endDate])
+}
+
+// Pricing Plans stored in database for flexibility
+model Plan {
+  id                  Int      @id @default(autoincrement())
+  code                String   @unique  // FREE, BASIC, PROFESSIONAL, ENTERPRISE
+  name                String             // Display name: "Starter", "Basic", etc.
+  description         String?
+  
+  // Pricing (in paise: ₹499 = 49900)
+  monthlyPricePaise   Int      @default(0)
+  yearlyPricePaise    Int      @default(0)
+  
+  // Limits (-1 = unlimited)
+  maxClients          Int      @default(3)
+  maxFirmsPerClient   Int      @default(2)
+  maxUsers            Int      @default(1)
+  maxStorageMB        Int      @default(100)
+  maxCredentials      Int      @default(5)
+  
+  // Features (JSON stored as text for flexibility)
+  features            String   @db.Text  // JSON: { taxCalculator: true, approvalWorkflow: false, ... }
+  
+  // Metadata
+  isActive            Boolean  @default(true)
+  isPopular           Boolean  @default(false)
+  sortOrder           Int      @default(0)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([code])
+  @@index([isActive])
 }
 

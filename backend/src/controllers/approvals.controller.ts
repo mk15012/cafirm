@@ -104,6 +104,11 @@ export async function getApproval(req: Request, res: Response) {
     }
 
     const { id } = req.params;
+    const approvalId = parseInt(id, 10);
+    
+    if (isNaN(approvalId)) {
+      return res.status(400).json({ error: 'Invalid approval ID' });
+    }
 
     // Get the root CA ID for this user's organization
     const caId = await getRootCAId(user.userId);
@@ -115,7 +120,7 @@ export async function getApproval(req: Request, res: Response) {
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
     const approval = await prisma.approval.findUnique({
-      where: { id },
+      where: { id: approvalId },
       include: {
         task: {
           include: {
@@ -248,6 +253,12 @@ export async function approveRequest(req: Request, res: Response) {
     }
 
     const { id } = req.params;
+    const approvalId = parseInt(id, 10);
+    
+    if (isNaN(approvalId)) {
+      return res.status(400).json({ error: 'Invalid approval ID' });
+    }
+    
     const { remarks } = req.body;
 
     // Get the root CA ID for this user's organization
@@ -261,7 +272,7 @@ export async function approveRequest(req: Request, res: Response) {
 
     // Verify approval belongs to this CA's organization
     const existingApproval = await prisma.approval.findUnique({
-      where: { id },
+      where: { id: approvalId },
       include: {
         task: {
           include: {
@@ -282,7 +293,7 @@ export async function approveRequest(req: Request, res: Response) {
     }
 
     const approval = await prisma.approval.update({
-      where: { id },
+      where: { id: approvalId },
       data: {
         status: 'APPROVED',
         approvedById: user.userId,
@@ -315,6 +326,12 @@ export async function rejectRequest(req: Request, res: Response) {
     }
 
     const { id } = req.params;
+    const approvalId = parseInt(id, 10);
+    
+    if (isNaN(approvalId)) {
+      return res.status(400).json({ error: 'Invalid approval ID' });
+    }
+    
     const { remarks } = req.body;
 
     if (!remarks) {
@@ -332,7 +349,7 @@ export async function rejectRequest(req: Request, res: Response) {
 
     // Verify approval belongs to this CA's organization
     const existingApproval = await prisma.approval.findUnique({
-      where: { id },
+      where: { id: approvalId },
       include: {
         task: {
           include: {
@@ -353,7 +370,7 @@ export async function rejectRequest(req: Request, res: Response) {
     }
 
     const approval = await prisma.approval.update({
-      where: { id },
+      where: { id: approvalId },
       data: {
         status: 'REJECTED',
         approvedById: user.userId,

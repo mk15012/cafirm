@@ -6,7 +6,8 @@ import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import Link from 'next/link';
 import AppLayout from '@/components/layout/AppLayout';
-import { ArrowLeft, Building2, Mail, Phone, MapPin, FileText, Plus, X, Users, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, Phone, MapPin, FileText, Plus, X, Users, CheckCircle, Edit2, Trash2, ChevronUp, ChevronDown, Eye } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Firm {
   id: number;
@@ -32,6 +33,9 @@ interface Client {
   firms: Firm[];
 }
 
+type SortField = 'name' | 'panNumber' | 'status' | 'tasks';
+type SortDirection = 'asc' | 'desc';
+
 export default function ClientDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -40,6 +44,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showFirmForm, setShowFirmForm] = useState(false);
+  const [editingFirm, setEditingFirm] = useState<Firm | null>(null);
   const [firmFormData, setFirmFormData] = useState({
     name: '',
     panNumber: '',
@@ -47,6 +52,10 @@ export default function ClientDetailPage() {
     registrationNumber: '',
     address: '',
   });
+  
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const isCA = user?.role === 'CA';
 
@@ -85,12 +94,90 @@ export default function ClientDetailPage() {
         ...firmFormData,
         clientId: params.id,
       });
+      toast.success('Firm created successfully!');
       setShowFirmForm(false);
       setFirmFormData({ name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
       loadClient();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to create firm');
+      toast.error(error.response?.data?.error || 'Failed to create firm');
     }
+  };
+
+  const handleEditFirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFirm) return;
+    try {
+      await api.put(`/firms/${editingFirm.id}`, firmFormData);
+      toast.success('Firm updated successfully!');
+      setEditingFirm(null);
+      setFirmFormData({ name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
+      loadClient();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to update firm');
+    }
+  };
+
+  const handleDeleteFirm = async (firmId: number, firmName: string) => {
+    if (!confirm(`Are you sure you want to delete "${firmName}"? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await api.delete(`/firms/${firmId}`);
+      toast.success('Firm deleted successfully!');
+      loadClient();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to delete firm');
+    }
+  };
+
+  const openEditForm = (firm: Firm) => {
+    setEditingFirm(firm);
+    setFirmFormData({
+      name: firm.name,
+      panNumber: firm.panNumber,
+      gstNumber: firm.gstNumber || '',
+      registrationNumber: '',
+      address: '',
+    });
+    setShowFirmForm(false);
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedFirms = () => {
+    if (!client) return [];
+    return [...client.firms].sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'panNumber':
+          comparison = a.panNumber.localeCompare(b.panNumber);
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case 'tasks':
+          comparison = a._count.tasks - b._count.tasks;
+          break;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ChevronUp className="w-4 h-4 text-gray-300" />;
+    return sortDirection === 'asc' 
+      ? <ChevronUp className="w-4 h-4 text-primary-600" />
+      : <ChevronDown className="w-4 h-4 text-primary-600" />;
   };
 
   if (isLoading || loading) {
@@ -129,10 +216,11 @@ export default function ClientDetailPage() {
     );
   }
 
+  const sortedFirms = getSortedFirms();
+
   return (
     <AppLayout title={`Client: ${client.name}`}>
-      <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
-        {/* Back Button */}
+      {/* Back Button */}
         <button
           onClick={() => router.back()}
           className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium mb-6"
@@ -141,76 +229,87 @@ export default function ClientDetailPage() {
           Back to Clients
         </button>
 
-        {/* Client Information Card */}
+        {/* Client Information Header - Full Width Horizontal Layout */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{client.name}</h1>
-              {client.contactPerson && (
-                <p className="text-lg text-gray-600 mt-1">{client.contactPerson}</p>
-              )}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* Left: Client Name & Contact */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl font-bold text-white">{client.name.charAt(0).toUpperCase()}</span>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">{client.name}</h1>
+                {client.contactPerson && (
+                  <p className="text-gray-600">{client.contactPerson}</p>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {client.email && (
-              <div className="flex items-start gap-3">
-                <Mail className="w-5 h-5 text-gray-400 mt-1" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Email</p>
+            {/* Right: Contact Details - Horizontal */}
+            <div className="flex flex-wrap items-center gap-6 text-sm">
+              {client.email && (
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-gray-400" />
                   <a href={`mailto:${client.email}`} className="text-primary-600 hover:underline">
                     {client.email}
                   </a>
                 </div>
-              </div>
-            )}
-            {client.phone && (
-              <div className="flex items-start gap-3">
-                <Phone className="w-5 h-5 text-gray-400 mt-1" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Phone</p>
-                  <a href={`tel:${client.phone}`} className="text-gray-900">
+              )}
+              {client.phone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-gray-400" />
+                  <a href={`tel:${client.phone}`} className="text-gray-700 hover:text-gray-900">
                     {client.phone}
                   </a>
                 </div>
-              </div>
-            )}
-            {client.address && (
-              <div className="flex items-start gap-3 md:col-span-2">
-                <MapPin className="w-5 h-5 text-gray-400 mt-1" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Address</p>
-                  <p className="text-gray-900">{client.address}</p>
+              )}
+              {client.address && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-700">{client.address}</span>
                 </div>
+              )}
+              {/* Stats */}
+              <div className="flex items-center gap-2 px-3 py-1 bg-primary-50 rounded-lg">
+                <Building2 className="w-4 h-4 text-primary-600" />
+                <span className="text-primary-700 font-medium">{client.firms.length} Firms</span>
               </div>
-            )}
-            {client.notes && (
-              <div className="flex items-start gap-3 md:col-span-2">
-                <FileText className="w-5 h-5 text-gray-400 mt-1" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Notes</p>
-                  <p className="text-gray-900">{client.notes}</p>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
+          
+          {/* Notes - if present */}
+          {client.notes && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-start gap-2">
+                <FileText className="w-4 h-4 text-gray-400 mt-0.5" />
+                <p className="text-sm text-gray-600">{client.notes}</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Firms Section */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
+        {/* Firms Section - Table View */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Firms</h2>
-                <p className="text-sm text-gray-500">{client.firms.length} {client.firms.length === 1 ? 'Firm' : 'Firms'}</p>
+                <h2 className="text-xl font-bold text-gray-900">Firms</h2>
+                <p className="text-sm text-gray-500">{client.firms.length} {client.firms.length === 1 ? 'firm' : 'firms'} associated</p>
               </div>
             </div>
             {isCA && (
               <button
-                onClick={() => setShowFirmForm(!showFirmForm)}
+                onClick={() => {
+                  setShowFirmForm(!showFirmForm);
+                  setEditingFirm(null);
+                  if (!showFirmForm) {
+                    setFirmFormData({ name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
+                  }
+                }}
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
               >
                 {showFirmForm ? (
@@ -228,11 +327,13 @@ export default function ClientDetailPage() {
             )}
           </div>
 
-          {/* Add Firm Form */}
-          {showFirmForm && isCA && (
-            <form onSubmit={handleCreateFirm} className="mb-6 bg-gray-50 rounded-xl p-6 border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Add New Firm</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Add/Edit Firm Form */}
+          {(showFirmForm || editingFirm) && isCA && (
+            <form onSubmit={editingFirm ? handleEditFirm : handleCreateFirm} className="p-6 bg-gray-50 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingFirm ? 'Edit Firm' : 'Add New Firm'}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Firm Name *</label>
                   <input
@@ -272,89 +373,175 @@ export default function ClientDetailPage() {
                     value={firmFormData.registrationNumber}
                     onChange={(e) => setFirmFormData({ ...firmFormData, registrationNumber: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder="U12345MH2020PTC123456"
+                    placeholder="Optional"
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="lg:col-span-3">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                  <textarea
+                  <input
+                    type="text"
                     value={firmFormData.address}
                     onChange={(e) => setFirmFormData({ ...firmFormData, address: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    rows={3}
                     placeholder="Enter firm address"
                   />
                 </div>
-              </div>
-              <div className="flex gap-2 mt-4">
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-                >
-                  Create Firm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowFirmForm(false);
-                    setFirmFormData({ name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
-                  }}
-                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
+                <div className="flex items-end gap-2">
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                  >
+                    {editingFirm ? 'Update' : 'Create'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFirmForm(false);
+                      setEditingFirm(null);
+                      setFirmFormData({ name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </form>
           )}
 
-          {/* Firms List */}
+          {/* Firms Table */}
           {client.firms.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {client.firms.map((firm) => (
-                <Link
-                  key={firm.id}
-                  href={`/firms/${firm.id}`}
-                  className="bg-gray-50 hover:bg-gray-100 rounded-xl p-6 border border-gray-200 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-primary-600 hover:underline mb-2">
-                        {firm.name}
-                      </h3>
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <p><span className="font-medium">PAN:</span> {firm.panNumber}</p>
-                        {firm.gstNumber && (
-                          <p><span className="font-medium">GST:</span> {firm.gstNumber}</p>
-                        )}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th 
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Firm Name
+                        <SortIcon field="name" />
                       </div>
-                    </div>
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                      firm.status === 'Active' 
-                        ? 'bg-green-100 text-green-800 border border-green-200' 
-                        : 'bg-gray-100 text-gray-800 border border-gray-200'
-                    }`}>
-                      {firm.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4 pt-4 border-t border-gray-200">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">{firm._count.tasks} Tasks</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">{firm._count.documents} Docs</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">{firm._count.invoices} Invoices</span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                    </th>
+                    <th 
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('panNumber')}
+                    >
+                      <div className="flex items-center gap-2">
+                        PAN Number
+                        <SortIcon field="panNumber" />
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      GST Number
+                    </th>
+                    <th 
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Status
+                        <SortIcon field="status" />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      onClick={() => handleSort('tasks')}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        Tasks
+                        <SortIcon field="tasks" />
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Docs
+                    </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Invoices
+                    </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {sortedFirms.map((firm) => (
+                    <tr key={firm.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <Link 
+                          href={`/firms/${firm.id}`}
+                          className="text-primary-600 font-semibold hover:underline"
+                        >
+                          {firm.name}
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4 text-gray-700 font-mono text-sm">
+                        {firm.panNumber}
+                      </td>
+                      <td className="px-6 py-4 text-gray-700 font-mono text-sm">
+                        {firm.gstNumber || '-'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                          firm.status === 'Active'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {firm.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
+                          {firm._count.tasks}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center justify-center w-8 h-8 bg-purple-50 text-purple-700 rounded-full text-sm font-medium">
+                          {firm._count.documents}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center justify-center w-8 h-8 bg-amber-50 text-amber-700 rounded-full text-sm font-medium">
+                          {firm._count.invoices}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <Link
+                            href={`/firms/${firm.id}`}
+                            className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Link>
+                          {isCA && (
+                            <>
+                              <button
+                                onClick={() => openEditForm(firm)}
+                                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Edit"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFirm(firm.id, firm.name)}
+                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <div className="text-center py-12">
+            <div className="text-center py-16">
               <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No Firms Found</h3>
               <p className="text-sm text-gray-500 mb-4">Get started by adding your first firm for this client</p>
@@ -370,7 +557,6 @@ export default function ClientDetailPage() {
             </div>
           )}
         </div>
-      </div>
     </AppLayout>
   );
 }

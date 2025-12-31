@@ -271,7 +271,8 @@ export default function ActivityLogsPage() {
                 type="date"
                 value={filters.startDate}
                 onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer"
+                style={{ colorScheme: 'light', backgroundColor: '#ffffff', color: '#111827' }}
               />
             </div>
             <div>
@@ -280,7 +281,8 @@ export default function ActivityLogsPage() {
                 type="date"
                 value={filters.endDate}
                 onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer"
+                style={{ colorScheme: 'light', backgroundColor: '#ffffff', color: '#111827' }}
               />
             </div>
           </div>

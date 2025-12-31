@@ -6,6 +6,7 @@ import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import AppLayout from '@/components/layout/AppLayout';
 import { User, Mail, Phone, Shield, Building2, Calendar, Edit, Lock, Eye, EyeOff, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface UserProfile {
   id: number;
@@ -114,11 +115,11 @@ export default function ProfilePage() {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
-      alert('Password changed successfully!');
+      toast.success('Password changed successfully!');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setActiveTab('profile');
     } catch (error: any) {
-      setPasswordError(error.response?.data?.error || 'Failed to change password');
+      toast.error(error.response?.data?.error || 'Failed to change password');
     } finally {
       setChangingPassword(false);
     }

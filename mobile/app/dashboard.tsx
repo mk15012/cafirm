@@ -35,7 +35,7 @@ interface Task {
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout, initializeAuth } = useAuthStore();
+  const { user, isAuthenticated, logout } = useAuthStore();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [recentTasks, setRecentTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,20 +47,10 @@ export default function DashboardScreen() {
   const canApprove = isCA || isManager;
 
   useEffect(() => {
-    initializeAuth();
-  }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      if (!isAuthenticated) {
-        router.replace('/auth/login');
-        return;
-      }
-      if (isAuthenticated && !dataLoaded) {
-        loadDashboard();
-      }
+    if (isAuthenticated && !dataLoaded) {
+      loadDashboard();
     }
-  }, [isAuthenticated, isLoading, dataLoaded]);
+  }, [isAuthenticated, dataLoaded]);
 
   const loadDashboard = async () => {
     if (dataLoaded) return;
@@ -101,7 +91,7 @@ export default function DashboardScreen() {
     return 'Good evening';
   };
 
-  if (isLoading || loading) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0ea5e9" />
@@ -131,6 +121,14 @@ export default function DashboardScreen() {
     quickAccessButtons.push({ title: 'Activity', route: '/activity-logs', color: '#64748b', icon: '📊' });
   }
 
+  // Tools section buttons
+  const toolButtons = [
+    { title: 'Tax Calc', route: '/tools/tax-calculator', color: '#059669', icon: '🧮' },
+  ];
+  if (isCA) {
+    toolButtons.push({ title: 'Credentials', route: '/tools/credentials', color: '#7c3aed', icon: '🔐' });
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -141,7 +139,7 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>Dashboard</Text>
-            <Text style={styles.headerSubtitle}>{getCurrentGreeting()}, {user?.name}</Text>
+            <Text style={styles.headerSubtitle}>{getCurrentGreeting()}, {user?.name} !!</Text>
             <View style={[styles.roleBadge, { backgroundColor: isCA ? '#a855f720' : isManager ? '#3b82f620' : '#6b728020' }]}>
               <Text style={[styles.roleText, { color: isCA ? '#a855f7' : isManager ? '#3b82f6' : '#6b7280' }]}>{user?.role}</Text>
             </View>
@@ -159,7 +157,9 @@ export default function DashboardScreen() {
             <MetricCard title="Overdue Items" value={metrics.overdueItems} color="#ef4444" icon="⚠️" />
             <MetricCard title="Active Clients" value={metrics.activeClients} color="#10b981" icon="🏢" />
             <MetricCard title="Firms Managed" value={metrics.firmsManaged} color="#06b6d4" icon="🏛️" />
-            <MetricCard title="Unpaid Invoices" value={metrics.unpaidInvoices} color="#f97316" icon="💰" />
+            {(isCA || isManager) && (
+              <MetricCard title="Unpaid Invoices" value={metrics.unpaidInvoices} color="#f97316" icon="💰" />
+            )}
           </View>
         )}
 
@@ -168,6 +168,23 @@ export default function DashboardScreen() {
           <Text style={styles.sectionTitle}>Quick Access</Text>
           <View style={styles.quickAccessGrid}>
             {quickAccessButtons.map((button) => (
+              <TouchableOpacity 
+                key={button.route}
+                style={[styles.quickAccessButton, { borderColor: button.color }]} 
+                onPress={() => router.push(button.route as any)}
+              >
+                <Text style={styles.quickAccessIcon}>{button.icon}</Text>
+                <Text style={[styles.quickAccessText, { color: button.color }]}>{button.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Tools Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tools</Text>
+          <View style={styles.quickAccessGrid}>
+            {toolButtons.map((button) => (
               <TouchableOpacity 
                 key={button.route}
                 style={[styles.quickAccessButton, { borderColor: button.color }]} 

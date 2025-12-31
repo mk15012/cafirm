@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function Index() {
   const router = useRouter();
@@ -22,8 +23,10 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>📊</Text>
-      <Text style={styles.title}>CA Firm Management</Text>
+      <View style={styles.logoContainer}>
+        <MaterialCommunityIcons name="office-building" size={48} color="#ffffff" />
+      </View>
+      <Text style={styles.title}>CA Firm Pro</Text>
       <Text style={styles.subtitle}>Chartered Accountant Practice Management</Text>
       
       {!ready || isLoading ? (
@@ -52,9 +55,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     padding: 24,
   },
-  logo: {
-    fontSize: 72,
+  logoContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 24,
+    backgroundColor: '#0ea5e9',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 24,
+    shadowColor: '#0ea5e9',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   title: {
     fontSize: 28,
