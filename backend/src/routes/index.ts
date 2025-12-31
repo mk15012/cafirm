@@ -13,6 +13,8 @@ import activityLogsRoutes from './activityLogs.routes';
 import credentialsRoutes from './credentials.routes';
 import subscriptionRoutes from './subscription.routes';
 import complianceRoutes from './compliance.routes';
+import analyticsRoutes from './analytics.routes';
+import paymentRoutes from './payment.routes';
 
 const router = Router();
 
@@ -30,6 +32,8 @@ router.use('/activity-logs', activityLogsRoutes);
 router.use('/credentials', credentialsRoutes);
 router.use('/subscription', subscriptionRoutes);
 router.use('/compliance', complianceRoutes);
+router.use('/analytics', analyticsRoutes);
+router.use('/payment', paymentRoutes);
 
 export default router;
 

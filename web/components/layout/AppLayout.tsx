@@ -9,7 +9,7 @@ import api from '@/lib/api';
 import {
   CheckSquare, Clock, AlertCircle, FileText, Users, Building2,
   DollarSign, Receipt, Calendar, Activity, User, LogOut, Menu, X, Shield, Lock, Eye, EyeOff, Mail, Phone,
-  Calculator, Key, Wrench
+  Calculator, Key, Wrench, BarChart3
 } from 'lucide-react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
 
@@ -246,6 +246,9 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                 </NavLink>
                 <NavLink href="/activity-logs" icon={Activity} active={pathname === '/activity-logs'}>
                   Activity Log
+                </NavLink>
+                <NavLink href="/reports" icon={BarChart3} active={pathname === '/reports'}>
+                  Reports
                 </NavLink>
               </>
             )}

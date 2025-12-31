@@ -94,18 +94,95 @@ export default function SubscriptionSettingsPage() {
       return;
     }
 
+    // Free plan - direct upgrade
+    if (planId === 'FREE') {
+      setUpgrading(true);
+      setSelectedPlan(planId);
+      try {
+        const response = await api.post('/subscription/upgrade', {
+          plan: planId,
+          billingCycle,
+        });
+        toast.success(response.data.message);
+        loadData();
+      } catch (error: any) {
+        toast.error(error.response?.data?.error || 'Failed to change plan');
+      } finally {
+        setUpgrading(false);
+        setSelectedPlan(null);
+      }
+      return;
+    }
+
+    // Paid plan - use Razorpay
     setUpgrading(true);
     setSelectedPlan(planId);
+    
     try {
-      const response = await api.post('/subscription/upgrade', {
-        plan: planId,
+      // Create order
+      const orderRes = await api.post('/payment/create-order', {
+        planCode: planId,
         billingCycle,
       });
-      toast.success(response.data.message);
-      loadData();
+
+      const { orderId, amount, currency, keyId, planName } = orderRes.data;
+
+      // Load Razorpay script if not already loaded
+      if (!(window as any).Razorpay) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+
+      // Open Razorpay checkout
+      const options = {
+        key: keyId,
+        amount: amount,
+        currency: currency,
+        name: 'CA Firm Pro',
+        description: `${planName} Plan - ${billingCycle === 'yearly' ? 'Annual' : 'Monthly'} Subscription`,
+        order_id: orderId,
+        handler: async function (response: any) {
+          try {
+            // Verify payment
+            const verifyRes = await api.post('/payment/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            
+            toast.success('Payment successful! Your plan has been upgraded.');
+            loadData();
+          } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Payment verification failed');
+          } finally {
+            setUpgrading(false);
+            setSelectedPlan(null);
+          }
+        },
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || '',
+        },
+        theme: {
+          color: '#7c3aed',
+        },
+        modal: {
+          ondismiss: function() {
+            setUpgrading(false);
+            setSelectedPlan(null);
+          }
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to upgrade plan');
-    } finally {
+      toast.error(error.response?.data?.error || 'Failed to initiate payment');
       setUpgrading(false);
       setSelectedPlan(null);
     }

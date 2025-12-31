@@ -70,6 +70,8 @@ enum SubscriptionStatus {
   EXPIRED
   CANCELLED
   TRIAL
+  PENDING
+  PAYMENT_FAILED
 }
 
 model User {
@@ -349,6 +351,8 @@ model Subscription {
   userId            Int                @unique
   user              User               @relation("UserSubscription", fields: [userId], references: [id], onDelete: Cascade)
   plan              PlanType           @default(FREE)
+  planCode          String             @default("FREE")
+  planDetails       Plan?              @relation(fields: [planCode], references: [code])
   status            SubscriptionStatus @default(ACTIVE)
   
   // Billing details
@@ -359,6 +363,7 @@ model Subscription {
   startDate         DateTime           @default(now())
   endDate           DateTime?
   trialEndsAt       DateTime?
+  cancelledAt       DateTime?
   
   // Usage tracking (current period)
   clientsUsed       Int                @default(0)
@@ -373,6 +378,9 @@ model Subscription {
   paymentMethod     String?            // razorpay, upi, card, etc.
   razorpayCustomerId String?
   razorpaySubscriptionId String?
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
   
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -407,6 +415,9 @@ model Plan {
   isActive            Boolean  @default(true)
   isPopular           Boolean  @default(false)
   sortOrder           Int      @default(0)
+  
+  // Relations
+  subscriptions       Subscription[]
   
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
