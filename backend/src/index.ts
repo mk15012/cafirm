@@ -15,7 +15,10 @@ app.use(cors({
     'http://localhost:3000',
     'http://localhost:8081',
     'http://127.0.0.1:8081',
-    process.env.CORS_ORIGIN || '',
+    process.env.FRONTEND_URL || '',
+    // Production URLs (add your Vercel domain)
+    'https://cafirmpro.vercel.app',
+    /\.vercel\.app$/,  // Allow all Vercel preview deployments
   ].filter(Boolean),
   credentials: true,
 }));
@@ -28,9 +31,18 @@ app.use(logActivity);
 // Routes
 app.use('/api', routes);
 
-// Health check
+// Health check (both paths for different hosting platforms)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0'
+  });
 });
 
 // Error handling middleware

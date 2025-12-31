@@ -24,7 +24,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f172a"
       },
-      "package": "com.cafirm.management"
+      "package": "com.cafirm.management",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -37,6 +38,18 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/your-project-id"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-expo-project-id"
+      }
+    },
+    "owner": "your-expo-username"
   }
 }

@@ -1,11 +1,15 @@
 {
   "cli": {
-    "version": ">= 3.0.0"
+    "version": ">= 5.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -17,17 +21,28 @@
       }
     },
     "production": {
+      "distribution": "store",
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       },
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cafirm-backend.onrender.com"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "track": "production",
+        "releaseStatus": "completed"
+      },
+      "ios": {
+        "appleId": "your-apple-id@email.com",
+        "ascAppId": "your-app-store-connect-app-id"
+      }
+    }
   }
 }
-
-
