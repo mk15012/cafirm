@@ -4,8 +4,21 @@ import { AuthRequest } from '../types';
 import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
 import crypto from 'crypto';
 
-// Simple encryption for storing passwords (in production, use a proper KMS)
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'ca-firm-default-key-32chars!!!';
+// Encryption key for storing portal credentials
+// IMPORTANT: Set ENCRYPTION_KEY in environment variables (must be 32 characters)
+const getEncryptionKey = (): string => {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) {
+    console.warn('⚠️ WARNING: ENCRYPTION_KEY not set. Using default key. Set a secure 32-character key in production!');
+    return 'ca-firm-default-key-32chars!!!'; // Fallback for development only
+  }
+  if (key.length < 32) {
+    throw new Error('ENCRYPTION_KEY must be at least 32 characters long');
+  }
+  return key;
+};
+
+const ENCRYPTION_KEY = getEncryptionKey();
 const IV_LENGTH = 16;
 
 function encrypt(text: string): string {

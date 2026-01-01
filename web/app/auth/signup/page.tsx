@@ -43,7 +43,14 @@ export default function SignupPage() {
       await signup(name, email, password, phone || undefined);
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Signup failed');
+      // Show detailed validation errors if available
+      const errorData = err.response?.data;
+      if (errorData?.details && Array.isArray(errorData.details)) {
+        const messages = errorData.details.map((d: any) => d.message).join('. ');
+        setError(messages || errorData.error || 'Signup failed');
+      } else {
+        setError(errorData?.error || 'Signup failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -303,7 +310,7 @@ export default function SignupPage() {
                   </div>
                 </div>
               </div>
-              <p className="text-xs text-slate-500 -mt-2">Password must be at least 6 characters</p>
+              <p className="text-xs text-slate-500 -mt-2">Password must be at least 6 characters with letters and numbers</p>
 
               <button
                 type="submit"
