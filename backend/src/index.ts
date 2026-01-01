@@ -16,7 +16,8 @@ app.use(cors({
     'http://localhost:8081',
     'http://127.0.0.1:8081',
     process.env.FRONTEND_URL || '',
-    // Production URLs (add your Vercel domain)
+    // Production URLs
+    'https://cafirm.vercel.app',
     'https://cafirmpro.vercel.app',
     /\.vercel\.app$/,  // Allow all Vercel preview deployments
   ].filter(Boolean),
