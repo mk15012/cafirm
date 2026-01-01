@@ -43,17 +43,20 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
   // Profile modal states
   const [profile, setProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'edit' | 'password'>('profile');
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
+  const [editData, setEditData] = useState({ name: '', phone: '' });
+  const [savingProfile, setSavingProfile] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const getCurrentDate = () => {
     return format(new Date(), 'EEEE d MMMM, yyyy');
@@ -189,6 +192,28 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
       setPasswordError(error.response?.data?.error || 'Failed to change password');
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  const handleProfileUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditError(null);
+
+    if (!editData.name.trim()) {
+      setEditError('Name cannot be empty');
+      return;
+    }
+
+    try {
+      setSavingProfile(true);
+      const response = await api.put('/auth/profile', editData);
+      setProfile(response.data);
+      alert('Profile updated successfully!');
+      setActiveTab('profile');
+    } catch (error: any) {
+      setEditError(error.response?.data?.error || 'Failed to update profile');
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -635,6 +660,23 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                       )}
                     </button>
                     <button
+                      onClick={() => {
+                        setEditData({ name: profile?.name || '', phone: profile?.phone || '' });
+                        setEditError(null);
+                        setActiveTab('edit');
+                      }}
+                      className={`px-6 py-4 font-medium text-sm transition-colors relative ${
+                        activeTab === 'edit'
+                          ? 'text-primary-600'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Edit Profile
+                      {activeTab === 'edit' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600"></div>
+                      )}
+                    </button>
+                    <button
                       onClick={() => setActiveTab('password')}
                       className={`px-6 py-4 font-medium text-sm transition-colors relative ${
                         activeTab === 'password'
@@ -716,6 +758,80 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                           </span>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'edit' && (
+                    <div>
+                      <div className="mb-6">
+                        <div className="flex items-center gap-3 mb-2">
+                          <User className="w-6 h-6 text-primary-600" />
+                          <h2 className="text-xl font-bold text-gray-900">Edit Profile</h2>
+                        </div>
+                        <p className="text-sm text-gray-600">Update your personal information.</p>
+                      </div>
+
+                      <form onSubmit={handleProfileUpdate} className="space-y-5">
+                        {editError && (
+                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm text-red-600">{editError}</p>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={editData.name}
+                            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                            placeholder="Your full name"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Phone Number
+                          </label>
+                          <input
+                            type="tel"
+                            value={editData.phone}
+                            onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                            placeholder="+91 1234567890"
+                          />
+                        </div>
+
+                        <div className="flex gap-3 pt-4">
+                          <button
+                            type="submit"
+                            disabled={savingProfile}
+                            className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {savingProfile ? (
+                              <span className="flex items-center justify-center gap-2">
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Saving...
+                              </span>
+                            ) : (
+                              'Save Changes'
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('profile');
+                              setEditError(null);
+                            }}
+                            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
                     </div>
                   )}
 
