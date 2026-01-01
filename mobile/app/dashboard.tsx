@@ -191,6 +191,9 @@ export default function DashboardScreen() {
             <MetricCard title="Overdue Items" value={metrics.overdueItems} color="#ef4444" icon="⚠️" />
             <MetricCard title="Active Clients" value={metrics.activeClients} color="#10b981" icon="🏢" />
             <MetricCard title="Firms Managed" value={metrics.firmsManaged} color="#06b6d4" icon="🏛️" />
+            {isCA && (
+              <MetricCard title="Monthly Revenue" value={metrics.monthlyRevenue} color="#22c55e" icon="💵" isRevenue />
+            )}
             {(isCA || isManager) && (
               <MetricCard title="Unpaid Invoices" value={metrics.unpaidInvoices} color="#f97316" icon="💰" />
             )}
@@ -263,12 +266,24 @@ export default function DashboardScreen() {
   );
 }
 
-function MetricCard({ title, value, color, icon }: { title: string; value: number; color: string; icon: string }) {
+function MetricCard({ title, value, color, icon, isRevenue }: { title: string; value: number; color: string; icon: string; isRevenue?: boolean }) {
+  const formatValue = () => {
+    if (isRevenue) {
+      if (value >= 100000) {
+        return `₹${(value / 100000).toFixed(1)}L`;
+      } else if (value >= 1000) {
+        return `₹${(value / 1000).toFixed(1)}K`;
+      }
+      return `₹${value}`;
+    }
+    return value;
+  };
+
   return (
     <View style={[styles.metricCard, { borderLeftColor: color }]}>
       <View style={styles.metricHeader}>
         <Text style={styles.metricIcon}>{icon}</Text>
-        <Text style={styles.metricValue}>{value}</Text>
+        <Text style={styles.metricValue}>{formatValue()}</Text>
       </View>
       <Text style={styles.metricTitle}>{title}</Text>
     </View>
