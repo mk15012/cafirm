@@ -189,6 +189,7 @@ export default function DashboardScreen() {
             <MetricCard title="Active Tasks" value={metrics.activeTasks} color="#3b82f6" icon="📋" />
             <MetricCard title="Pending Approvals" value={metrics.pendingApprovals} color="#a855f7" icon="⏳" />
             <MetricCard title="Overdue Items" value={metrics.overdueItems} color="#ef4444" icon="⚠️" />
+            <MetricCard title="Documents" value={metrics.documents} color="#8b5cf6" icon="📄" />
             <MetricCard title="Active Clients" value={metrics.activeClients} color="#10b981" icon="🏢" />
             <MetricCard title="Firms Managed" value={metrics.firmsManaged} color="#06b6d4" icon="🏛️" />
             {isCA && (
