@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CA Firm Pro Icon Generator</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #1e293b;
+      font-family: Arial, sans-serif;
+      gap: 40px;
+    }
+    h2 { color: white; margin-bottom: 10px; }
+    p { color: #94a3b8; font-size: 14px; }
+    
+    /* Main App Icon - 1024x1024 */
+    .icon-container {
+      width: 1024px;
+      height: 1024px;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border-radius: 224px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    
+    .icon-inner {
+      width: 600px;
+      height: 600px;
+      background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
+      border-radius: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 40px rgba(34, 211, 238, 0.3);
+    }
+    
+    /* Building Grid Icon */
+    .building-icon {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(5, 1fr);
+      gap: 20px;
+      width: 320px;
+      height: 400px;
+    }
+    
+    .window {
+      background: #0f172a;
+      border-radius: 12px;
+    }
+    
+    /* Preview sizes */
+    .preview {
+      display: flex;
+      gap: 40px;
+      align-items: flex-end;
+    }
+    
+    .preview-icon {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    
+    .preview-icon.large {
+      width: 192px;
+      height: 192px;
+      border-radius: 42px;
+    }
+    
+    .preview-icon.medium {
+      width: 96px;
+      height: 96px;
+      border-radius: 21px;
+    }
+    
+    .preview-icon.small {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+    }
+    
+    .preview-inner {
+      background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 30%;
+    }
+    
+    .preview-icon.large .preview-inner { width: 112px; height: 112px; }
+    .preview-icon.medium .preview-inner { width: 56px; height: 56px; }
+    .preview-icon.small .preview-inner { width: 28px; height: 28px; }
+    
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(5, 1fr);
+      gap: 2px;
+    }
+    
+    .preview-icon.large .mini-grid { width: 60px; height: 75px; gap: 4px; }
+    .preview-icon.medium .mini-grid { width: 30px; height: 38px; gap: 2px; }
+    .preview-icon.small .mini-grid { width: 15px; height: 19px; gap: 1px; }
+    
+    .mini-window {
+      background: #0f172a;
+      border-radius: 2px;
+    }
+
+    .instructions {
+      background: #1e293b;
+      padding: 30px;
+      border-radius: 16px;
+      max-width: 600px;
+      border: 1px solid #334155;
+    }
+    
+    .instructions h3 { color: #22d3ee; margin-bottom: 15px; }
+    .instructions ol { color: #e2e8f0; line-height: 2; }
+  </style>
+</head>
+<body>
+  <h2>CA Firm Pro - App Icon</h2>
+  <p>Right-click on the large icon below and "Save Image As" to download</p>
+  
+  <!-- Main Icon for Export -->
+  <div class="icon-container" id="main-icon">
+    <div class="icon-inner">
+      <div class="building-icon">
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+        <div class="window"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Preview at Different Sizes</h2>
+  <div class="preview">
+    <div>
+      <div class="preview-icon large">
+        <div class="preview-inner">
+          <div class="mini-grid">
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+          </div>
+        </div>
+      </div>
+      <p style="text-align:center">192px</p>
+    </div>
+    <div>
+      <div class="preview-icon medium">
+        <div class="preview-inner">
+          <div class="mini-grid">
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+          </div>
+        </div>
+      </div>
+      <p style="text-align:center">96px</p>
+    </div>
+    <div>
+      <div class="preview-icon small">
+        <div class="preview-inner">
+          <div class="mini-grid">
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
+          </div>
+        </div>
+      </div>
+      <p style="text-align:center">48px</p>
+    </div>
+  </div>
+
+  <div class="instructions">
+    <h3>📱 How to Create App Icons:</h3>
+    <ol>
+      <li>Open this file in Chrome browser</li>
+      <li>Take a screenshot of the large icon (1024x1024)</li>
+      <li>Or use browser DevTools: Right-click → Inspect → Select icon → Screenshot node</li>
+      <li>Save as <strong>icon.png</strong> and <strong>adaptive-icon.png</strong></li>
+      <li>Replace files in <code>/mobile/assets/</code></li>
+      <li>Rebuild the APK</li>
+    </ol>
+  </div>
+</body>
+</html>
+

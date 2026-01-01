@@ -371,7 +371,7 @@ export default function UsersPage() {
                   >
                     <Edit className="w-4 h-4" />
                   </button>
-                  {userData.id !== user?.id && (
+                  {String(userData.id) !== String(user?.id) && (
                     <button
                       onClick={() => handleDelete(userData.id)}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -408,7 +408,7 @@ export default function UsersPage() {
                 }`}>
                   {userData.status}
                 </span>
-                {userData.id !== user?.id && (
+                {String(userData.id) !== String(user?.id) && (
                   <button
                     onClick={() => handleToggleStatus(userData.id, userData.status)}
                     className={`text-xs font-medium px-2 py-1 rounded transition-colors ${

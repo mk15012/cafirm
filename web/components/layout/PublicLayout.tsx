@@ -33,7 +33,7 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
                 <Building2 className="w-5 h-5 text-white" />
               </div>
               <div className="hidden sm:block">
-                <span className="text-xl font-bold text-slate-900">CA Firm Pro</span>
+                <span className="text-xl font-bold text-slate-900">CA Firm</span>
                 <span className="text-xl font-bold text-amber-600 ml-1">Pro</span>
               </div>
             </Link>
@@ -135,7 +135,7 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
                   <Building2 className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <span className="text-xl font-bold">CA Firm Pro</span>
+                  <span className="text-xl font-bold">CA Firm</span>
                   <span className="text-xl font-bold text-amber-400 ml-1">Pro</span>
                 </div>
               </div>
