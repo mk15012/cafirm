@@ -17,7 +17,11 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cafirm.management"
+      "bundleIdentifier": "com.cafirm.management",
+      "infoPlist": {
+        "UIStatusBarStyle": "UIStatusBarStyleLightContent",
+        "UIViewControllerBasedStatusBarAppearance": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +29,12 @@
         "backgroundColor": "#0f172a"
       },
       "package": "com.cafirm.management",
-      "versionCode": 1
+      "versionCode": 1,
+      "statusBar": {
+        "backgroundColor": "#1e293b",
+        "barStyle": "light-content",
+        "translucent": false
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png",
