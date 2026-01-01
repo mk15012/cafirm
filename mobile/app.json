@@ -39,17 +39,13 @@
     "experiments": {
       "typedRoutes": true
     },
-    "updates": {
-      "url": "https://u.expo.dev/your-project-id"
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "extra": {
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "your-expo-project-id"
+        "projectId": "b29b3e42-aea3-411d-a93a-fcd9ebd46b47"
       }
-    },
-    "owner": "your-expo-username"
+    }
   }
 }

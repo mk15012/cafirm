@@ -241,3 +241,47 @@ export async function changePassword(req: Request, res: Response) {
   }
 }
 
+export async function updateProfile(req: Request, res: Response) {
+  try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { name, phone } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    // Update user profile
+    const updatedUser = await prisma.user.update({
+      where: { id: user.userId },
+      data: {
+        name: name.trim(),
+        phone: phone?.trim() || null,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        reportsTo: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+

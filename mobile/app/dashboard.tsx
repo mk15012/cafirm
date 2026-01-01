@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import { format } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface DashboardMetrics {
   activeTasks: number;
@@ -45,6 +46,34 @@ export default function DashboardScreen() {
   const isCA = user?.role === 'CA';
   const isManager = user?.role === 'MANAGER';
   const canApprove = isCA || isManager;
+
+  const doLogout = async () => {
+    try {
+      await AsyncStorage.multiRemove(['token', 'user']);
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    router.replace('/auth/login');
+  };
+
+  const handleLogout = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to logout?');
+      if (confirmed) {
+        doLogout();
+      }
+    } else {
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Logout', style: 'destructive', onPress: doLogout },
+        ]
+      );
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated && !dataLoaded) {
@@ -115,10 +144,12 @@ export default function DashboardScreen() {
   // Add role-specific buttons
   if (canApprove) {
     quickAccessButtons.push({ title: 'Approvals', route: '/approvals', color: '#f59e0b', icon: '✅' });
+    quickAccessButtons.push({ title: 'Meetings', route: '/meetings', color: '#0891b2', icon: '📅' });
   }
   if (isCA) {
     quickAccessButtons.push({ title: 'Users', route: '/users', color: '#a855f7', icon: '👥' });
     quickAccessButtons.push({ title: 'Activity', route: '/activity-logs', color: '#64748b', icon: '📊' });
+    quickAccessButtons.push({ title: 'Reports', route: '/reports', color: '#dc2626', icon: '📈' });
   }
 
   // Tools section buttons
@@ -127,6 +158,7 @@ export default function DashboardScreen() {
   ];
   if (isCA) {
     toolButtons.push({ title: 'Credentials', route: '/tools/credentials', color: '#7c3aed', icon: '🔐' });
+    toolButtons.push({ title: 'Subscription', route: '/settings/subscription', color: '#f59e0b', icon: '👑' });
   }
 
   return (
@@ -144,7 +176,7 @@ export default function DashboardScreen() {
               <Text style={[styles.roleText, { color: isCA ? '#a855f7' : isManager ? '#3b82f6' : '#6b7280' }]}>{user?.role}</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={logout} style={styles.logoutButton}>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
         </View>

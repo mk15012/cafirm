@@ -36,13 +36,18 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'edit' | 'password'>('profile');
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
+  const [editData, setEditData] = useState({
+    name: '',
+    phone: '',
+  });
   const [changingPassword, setChangingPassword] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
 
   useEffect(() => {
@@ -72,6 +77,11 @@ export default function ProfileScreen() {
       const response = await api.get('/auth/me');
       console.log('Profile response:', response.data);
       setProfile(response.data);
+      // Initialize edit data
+      setEditData({
+        name: response.data.name || '',
+        phone: response.data.phone || '',
+      });
     } catch (err: any) {
       console.error('Profile load error:', err);
       const errorMsg = err.response?.data?.error || err.message || 'Failed to load profile';
@@ -86,10 +96,33 @@ export default function ProfileScreen() {
           status: 'ACTIVE',
           createdAt: new Date().toISOString(),
         });
+        setEditData({
+          name: currentUser.name,
+          phone: '',
+        });
       }
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editData.name.trim()) {
+      Alert.alert('Error', 'Name is required');
+      return;
+    }
+
+    try {
+      setSavingProfile(true);
+      const response = await api.put('/auth/profile', editData);
+      setProfile(response.data);
+      Alert.alert('Success', 'Profile updated successfully!');
+      setActiveTab('profile');
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to update profile');
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -257,7 +290,20 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 {subscription.subscription.plan === 'FREE' && (
-                  <TouchableOpacity style={styles.upgradeButton}>
+                  <TouchableOpacity 
+                    style={styles.upgradeButton}
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.alert('To upgrade your subscription plan and unlock more features, please visit the web app settings.\n\nGo to: Settings → Subscription');
+                      } else {
+                        Alert.alert(
+                          'Upgrade Plan',
+                          'To upgrade your subscription plan and unlock more features, please visit the web app settings.\n\nGo to: Settings → Subscription',
+                          [{ text: 'OK', style: 'default' }]
+                        );
+                      }
+                    }}
+                  >
                     <Text style={styles.upgradeButtonText}>Upgrade Plan →</Text>
                   </TouchableOpacity>
                 )}
@@ -271,6 +317,15 @@ export default function ProfileScreen() {
                 onPress={() => setActiveTab('profile')}
               >
                 <Text style={[styles.tabText, activeTab === 'profile' && styles.tabTextActive]}>Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'edit' && styles.tabActive]}
+                onPress={() => {
+                  setEditData({ name: displayProfile?.name || '', phone: displayProfile?.phone || '' });
+                  setActiveTab('edit');
+                }}
+              >
+                <Text style={[styles.tabText, activeTab === 'edit' && styles.tabTextActive]}>Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.tab, activeTab === 'password' && styles.tabActive]}
@@ -308,6 +363,49 @@ export default function ProfileScreen() {
                   <Text style={styles.infoLabel}>📅 Member Since</Text>
                   <Text style={styles.infoValue}>{formatDate(displayProfile.createdAt)}</Text>
                 </View>
+              </View>
+            )}
+
+            {activeTab === 'edit' && (
+              <View style={styles.editSection}>
+                <Text style={styles.passwordTitle}>✏️ Edit Profile</Text>
+                <Text style={styles.passwordSubtitle}>Update your personal information</Text>
+                
+                <Text style={styles.inputLabel}>Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your name"
+                  placeholderTextColor="#9ca3af"
+                  value={editData.name}
+                  onChangeText={(text) => setEditData({ ...editData, name: text })}
+                />
+                
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your phone number"
+                  placeholderTextColor="#9ca3af"
+                  value={editData.phone}
+                  onChangeText={(text) => setEditData({ ...editData, phone: text })}
+                  keyboardType="phone-pad"
+                />
+                
+                <TouchableOpacity
+                  style={[styles.changePasswordButton, savingProfile && styles.buttonDisabled]}
+                  onPress={handleSaveProfile}
+                  disabled={savingProfile}
+                >
+                  <Text style={styles.changePasswordButtonText}>
+                    {savingProfile ? 'Saving...' : 'Save Changes'}
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.cancelEditButton}
+                  onPress={() => setActiveTab('profile')}
+                >
+                  <Text style={styles.cancelEditButtonText}>Cancel</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -478,6 +576,9 @@ const styles = StyleSheet.create({
   changePasswordButton: { backgroundColor: '#0ea5e9', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
   changePasswordButtonText: { color: 'white', fontSize: 16, fontWeight: '700' },
+  editSection: { width: '100%' },
+  cancelEditButton: { backgroundColor: '#f1f5f9', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  cancelEditButtonText: { color: '#64748b', fontSize: 16, fontWeight: '600' },
   noProfileCard: { backgroundColor: 'white', margin: 16, padding: 32, borderRadius: 16, alignItems: 'center' },
   noProfileText: { fontSize: 16, color: '#64748b', marginBottom: 16 },
   retryButton: { backgroundColor: '#0ea5e9', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },

@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import routes from './routes';
-import { logActivity } from './middleware/activityLog';
+import { logActivityMiddleware } from './middleware/activityLog';
 
 dotenv.config();
 
@@ -26,7 +26,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Activity logging middleware (after auth)
-app.use(logActivity);
+app.use(logActivityMiddleware);
 
 // Routes
 app.use('/api', routes);

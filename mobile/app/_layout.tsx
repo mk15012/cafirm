@@ -38,23 +38,37 @@ export default function RootLayout() {
   useEffect(() => {
     if (!isLayoutReady || isLoading || hasSeenOnboarding === null) return;
 
-    const firstSegment = segments[0] as string | undefined;
-    const inAuthGroup = firstSegment === 'auth';
-    const inOnboarding = firstSegment === 'onboarding';
-    const inIndexPage = !firstSegment || firstSegment === 'index';
+    const checkAndNavigate = async () => {
+      const firstSegment = segments[0] as string | undefined;
+      const inAuthGroup = firstSegment === 'auth';
+      const inOnboarding = firstSegment === 'onboarding';
+      const inIndexPage = !firstSegment || firstSegment === 'index';
 
-    // If user hasn't seen onboarding and not currently on onboarding page
-    if (!hasSeenOnboarding && !inOnboarding) {
-      router.replace('/onboarding');
-      return;
-    }
+      // Re-check AsyncStorage to get the latest onboarding status
+      const onboardingCompleted = await AsyncStorage.getItem('onboardingCompleted');
+      const currentOnboardingStatus = onboardingCompleted === 'true';
 
-    // Normal auth-based navigation
-    if (!isAuthenticated && !inAuthGroup && !inOnboarding && !inIndexPage) {
-      router.replace('/auth/login');
-    } else if (isAuthenticated && inAuthGroup) {
-      router.replace('/dashboard');
-    }
+      // Update state if it changed
+      if (currentOnboardingStatus !== hasSeenOnboarding) {
+        setHasSeenOnboarding(currentOnboardingStatus);
+        return; // Let the next effect run handle navigation
+      }
+
+      // If user hasn't seen onboarding and not currently on onboarding page
+      if (!currentOnboardingStatus && !inOnboarding) {
+        router.replace('/onboarding');
+        return;
+      }
+
+      // Normal auth-based navigation
+      if (!isAuthenticated && !inAuthGroup && !inOnboarding && !inIndexPage) {
+        router.replace('/auth/login');
+      } else if (isAuthenticated && inAuthGroup) {
+        router.replace('/dashboard');
+      }
+    };
+
+    checkAndNavigate();
   }, [isAuthenticated, isLoading, isLayoutReady, segments, token, hasSeenOnboarding]);
 
   // Show loading screen while initializing
