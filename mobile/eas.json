@@ -20,7 +20,7 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.29.149:3001"
+        "EXPO_PUBLIC_API_URL": "https://cafirm.onrender.com"
       }
     },
     "production": {
@@ -32,7 +32,7 @@
         "resourceClass": "m-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://cafirm-backend.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://cafirm.onrender.com"
       }
     }
   },
