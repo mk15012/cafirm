@@ -356,8 +356,9 @@ export async function updateTask(req: Request, res: Response) {
         'OVERDUE': ['IN_PROGRESS', 'AWAITING_APPROVAL', 'COMPLETED'], // Handle overdue tasks
       };
 
-      // CA can do anything - no restrictions
-      if (user.role !== 'CA') {
+      // CA and INDIVIDUAL users can do anything - no restrictions
+      // INDIVIDUAL users manage their own personal tasks, so they should have full control
+      if (user.role !== 'CA' && user.role !== 'INDIVIDUAL') {
         const allowedTransitions = user.role === 'MANAGER' 
           ? managerAllowedTransitions 
           : staffAllowedTransitions;

@@ -37,7 +37,7 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       await signup(name, email, password, phone || undefined, userType === 'individual' ? 'INDIVIDUAL' : 'CA');
-      router.replace('/dashboard');
+      router.replace('/(tabs)');
     } catch (error: any) {
       Alert.alert('Signup Failed', error.response?.data?.error || 'Could not create account');
     } finally {
