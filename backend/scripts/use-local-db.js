@@ -24,3 +24,4 @@ console.log('✅ Switched to LOCAL MySQL database');
 console.log('📌 Run: npx prisma generate');
 console.log('⚠️  Remember: Run "node scripts/use-prod-db.js" before committing!');
 
+
