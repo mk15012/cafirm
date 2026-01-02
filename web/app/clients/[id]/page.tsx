@@ -8,6 +8,7 @@ import Link from 'next/link';
 import AppLayout from '@/components/layout/AppLayout';
 import { ArrowLeft, Building2, Mail, Phone, MapPin, FileText, Plus, X, Users, CheckCircle, Edit2, Trash2, ChevronUp, ChevronDown, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Firm {
   id: number;
@@ -45,6 +46,7 @@ export default function ClientDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showFirmForm, setShowFirmForm] = useState(false);
   const [editingFirm, setEditingFirm] = useState<Firm | null>(null);
+  const [deletingFirm, setDeletingFirm] = useState<Firm | null>(null);
   const [firmFormData, setFirmFormData] = useState({
     name: '',
     panNumber: '',
@@ -117,13 +119,16 @@ export default function ClientDetailPage() {
     }
   };
 
-  const handleDeleteFirm = async (firmId: number, firmName: string) => {
-    if (!confirm(`Are you sure you want to delete "${firmName}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteFirmRequest = (firm: Firm) => {
+    setDeletingFirm(firm);
+  };
+
+  const handleDeleteFirmConfirm = async () => {
+    if (!deletingFirm) return;
     try {
-      await api.delete(`/firms/${firmId}`);
+      await api.delete(`/firms/${deletingFirm.id}`);
       toast.success('Firm deleted successfully!');
+      setDeletingFirm(null);
       loadClient();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to delete firm');
@@ -525,7 +530,7 @@ export default function ClientDetailPage() {
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDeleteFirm(firm.id, firm.name)}
+                                onClick={() => handleDeleteFirmRequest(firm)}
                                 className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                 title="Delete"
                               >
@@ -557,6 +562,18 @@ export default function ClientDetailPage() {
             </div>
           )}
         </div>
+
+      {/* Delete Firm Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingFirm}
+        onClose={() => setDeletingFirm(null)}
+        onConfirm={handleDeleteFirmConfirm}
+        title="Delete Firm?"
+        message={`Are you sure you want to delete "${deletingFirm?.name}"? This will permanently delete all associated tasks, documents, and invoices.`}
+        confirmText="Yes, Delete Firm"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </AppLayout>
   );
 }

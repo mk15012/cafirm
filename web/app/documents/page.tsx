@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import AppLayout from '@/components/layout/AppLayout';
 import { FileText, Upload, X, Filter, Download, Trash2, Building2, CheckSquare, User, Calendar, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Document {
   id: string;
@@ -46,6 +47,7 @@ export default function DocumentsPage() {
   const [tasks, setTasks] = useState<Array<{ id: string; title: string }>>([]);
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [deletingDoc, setDeletingDoc] = useState<Document | null>(null);
   const [filters, setFilters] = useState({ firmId: '', taskId: '', documentType: '' });
   const [selectedClientId, setSelectedClientId] = useState('');
   const [formData, setFormData] = useState({
@@ -172,11 +174,16 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return;
+  const handleDeleteRequest = (doc: Document) => {
+    setDeletingDoc(doc);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingDoc) return;
     try {
-      await api.delete(`/documents/${id}`);
+      await api.delete(`/documents/${deletingDoc.id}`);
       toast.success('Document deleted successfully!');
+      setDeletingDoc(null);
       loadDocuments();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to delete document');
@@ -542,7 +549,7 @@ export default function DocumentsPage() {
                           Download
                         </button>
                         <button
-                          onClick={() => handleDelete(doc.id)}
+                          onClick={() => handleDeleteRequest(doc)}
                           className="flex items-center gap-1 text-red-600 hover:text-red-700 font-medium"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -557,6 +564,18 @@ export default function DocumentsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Document Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingDoc}
+        onClose={() => setDeletingDoc(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Document?"
+        message={`Are you sure you want to delete "${deletingDoc?.fileName}"? This action cannot be undone.`}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </AppLayout>
   );
 }

@@ -148,7 +148,11 @@ export async function createFirm(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { clientId, name, panNumber, gstNumber, registrationNumber, address } = req.body;
+    const { 
+      clientId, name, panNumber, gstNumber, registrationNumber, address,
+      // New optional fields for auto-creation
+      serviceId, assignedToId, createTask: shouldCreateTask, createInvoice: shouldCreateInvoice
+    } = req.body;
 
     if (!clientId || !name || !panNumber) {
       return res.status(400).json({ error: 'Client ID, name, and PAN number are required' });
@@ -172,7 +176,7 @@ export async function createFirm(req: Request, res: Response) {
     // Verify client belongs to this CA's organization
     const client = await prisma.client.findUnique({
       where: { id: parsedClientId },
-      select: { createdById: true },
+      select: { createdById: true, name: true },
     });
 
     if (!client) {
@@ -183,6 +187,27 @@ export async function createFirm(req: Request, res: Response) {
       return res.status(403).json({ error: 'Access denied: Client does not belong to your organization' });
     }
 
+    // Get service details if serviceId is provided
+    let service: any = null;
+    if (serviceId) {
+      const parsedServiceId = parseInt(serviceId, 10);
+      if (!isNaN(parsedServiceId)) {
+        service = await prisma.service.findUnique({
+          where: { id: parsedServiceId },
+        });
+        if (service && service.createdById !== caId) {
+          service = null; // Service doesn't belong to this CA
+        }
+      }
+    }
+
+    // Determine assignee (default to current user if not specified)
+    const taskAssigneeId = assignedToId ? parseInt(assignedToId, 10) : user.userId;
+    if (assignedToId && !orgUserIds.includes(taskAssigneeId)) {
+      return res.status(403).json({ error: 'Cannot assign to user outside your organization' });
+    }
+
+    // Create firm
     const firm = await prisma.firm.create({
       data: {
         clientId: parsedClientId,
@@ -198,7 +223,92 @@ export async function createFirm(req: Request, res: Response) {
       },
     });
 
-    res.status(201).json(firm);
+    let createdTask = null;
+    let createdInvoice = null;
+
+    // Auto-create task if service is selected and shouldCreateTask is true (or default true)
+    if (service && shouldCreateTask !== false) {
+      const dueDate = new Date();
+      // Set due date based on service frequency
+      if (service.frequency === 'MONTHLY') {
+        dueDate.setMonth(dueDate.getMonth() + 1);
+      } else if (service.frequency === 'QUARTERLY') {
+        dueDate.setMonth(dueDate.getMonth() + 3);
+      } else if (service.frequency === 'YEARLY') {
+        // For yearly, set to common due dates
+        const currentMonth = dueDate.getMonth();
+        if (service.category === 'ITR') {
+          // ITR typically due July 31
+          dueDate.setMonth(6); // July
+          dueDate.setDate(31);
+          if (currentMonth > 6) {
+            dueDate.setFullYear(dueDate.getFullYear() + 1);
+          }
+        } else {
+          dueDate.setMonth(dueDate.getMonth() + 12);
+        }
+      } else {
+        // One-time: 30 days from now
+        dueDate.setDate(dueDate.getDate() + 30);
+      }
+
+      createdTask = await prisma.task.create({
+        data: {
+          firmId: firm.id,
+          title: `${service.name} - ${client.name}`,
+          description: service.description || `${service.name} for ${name}`,
+          assignedToId: taskAssigneeId,
+          priority: 'MEDIUM',
+          dueDate: dueDate,
+          createdById: user.userId,
+        },
+      });
+    }
+
+    // Auto-create invoice if service is selected and shouldCreateInvoice is true (or default true)
+    if (service && shouldCreateInvoice !== false) {
+      // Generate invoice number
+      const year = new Date().getFullYear();
+      const count = await prisma.invoice.count({
+        where: {
+          invoiceNumber: {
+            startsWith: `INV-${year}-`,
+          },
+        },
+      });
+      const invoiceNumber = `INV-${year}-${String(count + 1).padStart(5, '0')}`;
+
+      // Calculate amounts (service.rate is in paise)
+      const amount = service.rate / 100; // Convert to rupees
+      const taxRate = 0.18; // 18% GST
+      const taxAmount = amount * taxRate;
+      const totalAmount = amount + taxAmount;
+
+      // Due date: 30 days from now
+      const invoiceDueDate = new Date();
+      invoiceDueDate.setDate(invoiceDueDate.getDate() + 30);
+
+      createdInvoice = await prisma.invoice.create({
+        data: {
+          firmId: firm.id,
+          invoiceNumber,
+          amount,
+          taxAmount,
+          totalAmount,
+          dueDate: invoiceDueDate,
+          createdById: user.userId,
+        },
+      });
+    }
+
+    res.status(201).json({
+      firm,
+      task: createdTask,
+      invoice: createdInvoice,
+      message: service 
+        ? `Firm created with ${createdTask ? 'task' : ''}${createdTask && createdInvoice ? ' and ' : ''}${createdInvoice ? 'invoice' : ''}`
+        : 'Firm created successfully',
+    });
   } catch (error: any) {
     if (error.code === 'P2002') {
       return res.status(400).json({ error: 'PAN or GST number already exists' });

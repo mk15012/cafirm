@@ -6,8 +6,23 @@ import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import Link from 'next/link';
 import AppLayout from '@/components/layout/AppLayout';
-import { Building2, Plus, X, CheckSquare, FileText, Receipt, Users, Search, Edit, Trash2, Eye, ChevronUp, ChevronDown } from 'lucide-react';
+import { Building2, Plus, X, CheckSquare, FileText, Receipt, Users, Search, Edit, Trash2, Eye, ChevronUp, ChevronDown, IndianRupee, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+
+interface Service {
+  id: number;
+  name: string;
+  category: string;
+  rate: number;
+  frequency: string;
+}
+
+interface TeamMember {
+  id: number;
+  name: string;
+  role: string;
+}
 
 interface Firm {
   id: number;
@@ -34,9 +49,13 @@ export default function FirmsPage() {
   const [firms, setFirms] = useState<Firm[]>([]);
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Array<{ id: number; name: string }>>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingFirm, setEditingFirm] = useState<Firm | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deletingFirm, setDeletingFirm] = useState<Firm | null>(null);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -101,6 +120,11 @@ export default function FirmsPage() {
     gstNumber: '',
     registrationNumber: '',
     address: '',
+    // Service & auto-creation fields
+    serviceId: '',
+    assignedToId: '',
+    createTask: true,
+    createInvoice: true,
   });
 
   useEffect(() => {
@@ -115,6 +139,8 @@ export default function FirmsPage() {
       }
       loadFirms();
       loadClients();
+      loadServices();
+      loadTeamMembers();
     }
   }, [isAuthenticated, isLoading, router]);
 
@@ -136,6 +162,29 @@ export default function FirmsPage() {
       setClients(response.data);
     } catch (error) {
       console.error('Failed to load clients:', error);
+    }
+  };
+
+  const loadServices = async () => {
+    try {
+      const response = await api.get('/services');
+      // Convert rate from paise to rupees
+      const servicesWithRupees = response.data.map((s: Service) => ({
+        ...s,
+        rate: s.rate / 100,
+      }));
+      setServices(servicesWithRupees);
+    } catch (error) {
+      console.error('Failed to load services:', error);
+    }
+  };
+
+  const loadTeamMembers = async () => {
+    try {
+      const response = await api.get('/users');
+      setTeamMembers(response.data);
+    } catch (error) {
+      console.error('Failed to load team members:', error);
     }
   };
 
@@ -161,19 +210,56 @@ export default function FirmsPage() {
     e.preventDefault();
     try {
       if (editingFirm) {
-        await api.put(`/firms/${editingFirm.id}`, formData);
+        await api.put(`/firms/${editingFirm.id}`, {
+          clientId: formData.clientId,
+          name: formData.name,
+          panNumber: formData.panNumber,
+          gstNumber: formData.gstNumber,
+          registrationNumber: formData.registrationNumber,
+          address: formData.address,
+        });
         toast.success('Firm updated successfully!');
       } else {
-        await api.post('/firms', formData);
-        toast.success('Firm created successfully!');
+        const response = await api.post('/firms', {
+          ...formData,
+          serviceId: formData.serviceId || undefined,
+          assignedToId: formData.assignedToId || undefined,
+        });
+        
+        // Show detailed success message
+        const { task, invoice } = response.data;
+        if (task && invoice) {
+          toast.success('Firm created with task and invoice!');
+        } else if (task) {
+          toast.success('Firm created with task!');
+        } else if (invoice) {
+          toast.success('Firm created with invoice!');
+        } else {
+          toast.success('Firm created successfully!');
+        }
       }
       setShowForm(false);
       setEditingFirm(null);
-      setFormData({ clientId: '', name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
+      resetFormData();
       loadFirms();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to save firm');
     }
+  };
+
+  const resetFormData = () => {
+    setFormData({
+      clientId: '',
+      name: '',
+      panNumber: '',
+      gstNumber: '',
+      registrationNumber: '',
+      address: '',
+      serviceId: '',
+      assignedToId: '',
+      createTask: true,
+      createInvoice: true,
+    });
   };
 
   const handleEdit = (firm: Firm) => {
@@ -185,15 +271,26 @@ export default function FirmsPage() {
       gstNumber: firm.gstNumber || '',
       registrationNumber: firm.registrationNumber || '',
       address: firm.address || '',
+      serviceId: '',
+      assignedToId: '',
+      createTask: true,
+      createInvoice: true,
     });
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this firm? This will also delete all associated tasks, documents, and invoices.')) return;
+  const handleDeleteRequest = (firm: Firm) => {
+    setDeletingFirm(firm);
+    setDeleteId(firm.id);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteId) return;
     try {
-      await api.delete(`/firms/${id}`);
+      await api.delete(`/firms/${deleteId}`);
       toast.success('Firm deleted successfully!');
+      setDeleteId(null);
+      setDeletingFirm(null);
       loadFirms();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to delete firm');
@@ -234,7 +331,7 @@ export default function FirmsPage() {
           <button
             onClick={() => {
               setEditingFirm(null);
-              setFormData({ clientId: '', name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
+              resetFormData();
               setShowForm(true);
             }}
             className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
@@ -279,7 +376,7 @@ export default function FirmsPage() {
                 onClick={() => {
                   setShowForm(false);
                   setEditingFirm(null);
-                  setFormData({ clientId: '', name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
+                  resetFormData();
                 }}
                 className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
               >
@@ -358,6 +455,96 @@ export default function FirmsPage() {
                   placeholder="Firm address"
                 />
               </div>
+
+              {/* Service Selection - Only for new firms */}
+              {!editingFirm && services.length > 0 && (
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Zap className="w-5 h-5 text-amber-500" />
+                    <h3 className="font-semibold text-gray-900">Quick Setup (Optional)</h3>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Select a service to automatically create a task and invoice for this firm.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Service</label>
+                      <select
+                        value={formData.serviceId}
+                        onChange={(e) => setFormData({ ...formData, serviceId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="">Select Service (Optional)</option>
+                        {services.map((service) => (
+                          <option key={service.id} value={service.id}>
+                            {service.name} - ₹{service.rate.toLocaleString('en-IN')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assign To</label>
+                      <select
+                        value={formData.assignedToId}
+                        onChange={(e) => setFormData({ ...formData, assignedToId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="">Self (Default)</option>
+                        {teamMembers.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name} ({member.role})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {formData.serviceId && (
+                    <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <p className="text-sm font-medium text-amber-800 mb-2">Auto-create:</p>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.createTask}
+                            onChange={(e) => setFormData({ ...formData, createTask: e.target.checked })}
+                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                          />
+                          <span className="text-sm text-gray-700">Create Task</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.createInvoice}
+                            onChange={(e) => setFormData({ ...formData, createInvoice: e.target.checked })}
+                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                          />
+                          <span className="text-sm text-gray-700">Create Invoice</span>
+                        </label>
+                      </div>
+                      <p className="text-xs text-amber-600 mt-2">
+                        Task and invoice will be created based on the selected service rate.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!editingFirm && services.length === 0 && (
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-sm text-slate-600">
+                      <span className="font-medium">💡 Tip:</span> Configure your services in{' '}
+                      <Link href="/settings/services" className="text-primary-600 hover:underline">
+                        Settings → Services & Pricing
+                      </Link>{' '}
+                      to enable quick task and invoice creation when adding firms.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4 border-t border-gray-200">
                 <button
                   type="submit"
@@ -370,7 +557,7 @@ export default function FirmsPage() {
                   onClick={() => {
                     setShowForm(false);
                     setEditingFirm(null);
-                    setFormData({ clientId: '', name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
+                    resetFormData();
                   }}
                   className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                 >
@@ -392,7 +579,7 @@ export default function FirmsPage() {
             <button
               onClick={() => {
                 setEditingFirm(null);
-                setFormData({ clientId: '', name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
+                resetFormData();
                 setShowForm(true);
               }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
@@ -550,7 +737,7 @@ export default function FirmsPage() {
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => handleDelete(firm.id)}
+                              onClick={() => handleDeleteRequest(firm)}
                               className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title="Delete"
                             >
@@ -654,6 +841,21 @@ export default function FirmsPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteId}
+        onClose={() => {
+          setDeleteId(null);
+          setDeletingFirm(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Firm?"
+        message={`Are you sure you want to delete "${deletingFirm?.name}"? This will permanently delete all associated tasks, documents, and invoices.`}
+        confirmText="Yes, Delete Firm"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </AppLayout>
   );
 }

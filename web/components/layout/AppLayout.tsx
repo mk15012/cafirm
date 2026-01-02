@@ -9,9 +9,11 @@ import api from '@/lib/api';
 import {
   CheckSquare, Clock, AlertCircle, FileText, Users, Building2,
   DollarSign, Receipt, Calendar, Activity, User, LogOut, Menu, X, Shield, Lock, Eye, EyeOff, Mail, Phone,
-  Calculator, Key, Wrench, BarChart3
+  Calculator, Key, Wrench, BarChart3, Package, CreditCard, Settings
 } from 'lucide-react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import toast from 'react-hot-toast';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -21,7 +23,10 @@ interface AppLayoutProps {
 export default function AppLayout({ children, title }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, logout } = useAuthStore();
+  const { user, logout, isLoading } = useAuthStore();
+  
+  // Determine if user is INDIVIDUAL (only after loading is complete to avoid flash)
+  const isIndividual = !isLoading && user?.role === 'INDIVIDUAL';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCAAccess, setShowCAAccess] = useState(false);
   const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -49,7 +54,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
     newPassword: '',
     confirmPassword: '',
   });
-  const [editData, setEditData] = useState({ name: '', phone: '' });
+  const [editData, setEditData] = useState({ name: '', phone: '', birthday: '' });
   const [savingProfile, setSavingProfile] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -57,6 +62,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const getCurrentDate = () => {
     return format(new Date(), 'EEEE d MMMM, yyyy');
@@ -113,14 +119,14 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
       }
 
       // Show success message
-      alert('Meeting scheduled successfully! Google Calendar link opened in new tab.');
+      toast.success('Meeting scheduled successfully! 📅 Google Calendar link opened in new tab.');
 
       // Reset form and close modal
       setMeetingData({ title: '', date: '', time: '', clientId: '', firmId: '', location: '', notes: '' });
       setShowMeetingModal(false);
     } catch (error: any) {
       console.error('Failed to create meeting:', error);
-      alert(error.response?.data?.error || 'Failed to schedule meeting. Please try again.');
+      toast.error(error.response?.data?.error || 'Failed to schedule meeting. Please try again.');
     } finally {
       setSubmittingMeeting(false);
     }
@@ -185,7 +191,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
-      alert('Password changed successfully!');
+      toast.success('Password changed successfully! 🔐');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setActiveTab('profile');
     } catch (error: any) {
@@ -193,6 +199,15 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
     } finally {
       setChangingPassword(false);
     }
+  };
+
+  const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
   };
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
@@ -208,7 +223,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
       setSavingProfile(true);
       const response = await api.put('/auth/profile', editData);
       setProfile(response.data);
-      alert('Profile updated successfully!');
+      toast.success('Profile updated successfully! ✨');
       setActiveTab('profile');
     } catch (error: any) {
       setEditError(error.response?.data?.error || 'Failed to update profile');
@@ -238,32 +253,39 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
 
           <nav className="flex-1 p-4 overflow-y-auto">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-3">
-              MAIN NAVIGATION
+              {isIndividual ? 'MY DOCUMENTS' : 'MAIN NAVIGATION'}
             </p>
             <NavLink href="/dashboard" icon={Activity} active={pathname === '/dashboard'}>
               Dashboard
             </NavLink>
             <NavLink href="/tasks" icon={CheckSquare} active={pathname === '/tasks' || pathname?.startsWith('/tasks/')}>
-              Tasks
+              {isIndividual ? 'My Reminders' : 'Tasks'}
             </NavLink>
             <NavLink href="/documents" icon={FileText} active={pathname === '/documents'}>
-              Documents
+              {isIndividual ? 'My Documents' : 'Documents'}
             </NavLink>
-            <NavLink href="/clients" icon={Users} active={pathname === '/clients' || pathname?.startsWith('/clients/')}>
-              Clients
-            </NavLink>
-            <NavLink href="/firms" icon={Building2} active={pathname === '/firms' || pathname?.startsWith('/firms/')}>
-              Firms
-            </NavLink>
-            <NavLink href="/invoices" icon={Receipt} active={pathname === '/invoices'}>
-              Invoices
-            </NavLink>
-            <NavLink href="/approvals" icon={Clock} active={pathname === '/approvals'}>
-              Approvals
-            </NavLink>
-            <NavLink href="/compliance" icon={Calendar} active={pathname === '/compliance'}>
-              Compliance
-            </NavLink>
+            
+            {/* CA/Team specific navigation - hide for INDIVIDUAL users and during loading */}
+            {!isLoading && !isIndividual && (
+              <>
+                <NavLink href="/clients" icon={Users} active={pathname === '/clients' || pathname?.startsWith('/clients/')}>
+                  Clients
+                </NavLink>
+                <NavLink href="/firms" icon={Building2} active={pathname === '/firms' || pathname?.startsWith('/firms/')}>
+                  Firms
+                </NavLink>
+                <NavLink href="/invoices" icon={Receipt} active={pathname === '/invoices'}>
+                  Invoices
+                </NavLink>
+                <NavLink href="/approvals" icon={Clock} active={pathname === '/approvals'}>
+                  Approvals
+                </NavLink>
+                <NavLink href="/compliance" icon={Calendar} active={pathname === '/compliance'}>
+                  Compliance
+                </NavLink>
+              </>
+            )}
+            
             {user?.role === 'CA' && (
               <>
                 <NavLink href="/users" icon={User} active={pathname === '/users'}>
@@ -286,8 +308,23 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
               Tax Calculator
             </NavLink>
             <NavLink href="/tools/credentials" icon={Key} active={pathname === '/tools/credentials'}>
-              Portal Credentials
+              {isIndividual ? 'My Credentials' : 'Portal Credentials'}
             </NavLink>
+
+            {/* Settings Section - CA Only */}
+            {user?.role === 'CA' && (
+              <>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 mt-6 px-3">
+                  SETTINGS
+                </p>
+                <NavLink href="/settings/services" icon={Package} active={pathname === '/settings/services'}>
+                  Services & Pricing
+                </NavLink>
+                <NavLink href="/settings/subscription" icon={CreditCard} active={pathname === '/settings/subscription'}>
+                  Subscription
+                </NavLink>
+              </>
+            )}
           </nav>
 
           {/* Subscription Status */}
@@ -334,13 +371,15 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setShowMeetingModal(true)}
-                  className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Calendar className="w-4 h-4" />
-                  Schedule Meeting
-                </button>
+                {!isLoading && !isIndividual && (
+                  <button
+                    onClick={() => setShowMeetingModal(true)}
+                    className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Schedule Meeting
+                  </button>
+                )}
                 <button
                   onClick={() => setShowProfileModal(true)}
                   className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity rounded-lg p-2 -m-2"
@@ -354,7 +393,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                   </div>
                 </button>
                 <button
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                   title="Logout"
                 >
@@ -661,7 +700,11 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                     </button>
                     <button
                       onClick={() => {
-                        setEditData({ name: profile?.name || '', phone: profile?.phone || '' });
+                        setEditData({ 
+                          name: profile?.name || '', 
+                          phone: profile?.phone || '',
+                          birthday: profile?.birthday ? profile.birthday.split('T')[0] : '',
+                        });
                         setEditError(null);
                         setActiveTab('edit');
                       }}
@@ -716,6 +759,19 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-500 mb-1">Phone Number</p>
                             <p className="text-base font-semibold text-gray-900">{profile.phone}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Birthday */}
+                      {profile.birthday && (
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 bg-pink-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-2xl">🎂</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-500 mb-1">Birthday</p>
+                            <p className="text-base font-semibold text-gray-900">{formatDate(profile.birthday)}</p>
                           </div>
                         </div>
                       )}
@@ -803,6 +859,20 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="+91 1234567890"
                           />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            🎂 Birthday
+                          </label>
+                          <input
+                            type="date"
+                            value={editData.birthday}
+                            onChange={(e) => setEditData({ ...editData, birthday: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                            style={{ colorScheme: 'light' }}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Add your birthday to receive greetings from the team! 🎉</p>
                         </div>
 
                         <div className="flex gap-3 pt-4">
@@ -962,6 +1032,18 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
           </div>
         </div>
       )}
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+        title="Confirm Logout"
+        message="Are you sure you want to logout? You will need to sign in again to access your account."
+        confirmText="Logout"
+        cancelText="Cancel"
+        variant="warning"
+      />
     </div>
   );
 }

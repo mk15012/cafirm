@@ -21,8 +21,9 @@ export async function getDashboardMetrics(userId: number, userRole: UserRole): P
   // Get accessible firm IDs based on role
   let accessibleFirmIds: number[] = [];
   
-  if (userRole === 'CA') {
+  if (userRole === 'CA' || userRole === 'INDIVIDUAL') {
     // CA sees all firms created by anyone in their organization
+    // INDIVIDUAL users see only firms they created (their personal firm)
     const orgFirms = await prisma.firm.findMany({
       where: { createdById: { in: orgUserIds } },
       select: { id: true },

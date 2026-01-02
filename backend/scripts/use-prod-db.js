@@ -23,3 +23,4 @@ fs.writeFileSync(schemaPath, schema);
 console.log('✅ Switched to PRODUCTION PostgreSQL database');
 console.log('📌 Safe to commit now!');
 
+

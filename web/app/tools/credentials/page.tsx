@@ -23,6 +23,7 @@ import {
   Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Credential {
   id: number;
@@ -70,6 +71,7 @@ export default function CredentialsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingCredential, setEditingCredential] = useState<Credential | null>(null);
+  const [deletingCredential, setDeletingCredential] = useState<Credential | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientFilter, setSelectedClientFilter] = useState('');
   const [selectedPortalFilter, setSelectedPortalFilter] = useState('All');
@@ -154,8 +156,9 @@ export default function CredentialsPage() {
     }
   }, [isAuthenticated, isLoading, router, user]);
 
-  // Check if user can edit (CA only)
-  const canEdit = user?.role === 'CA';
+  // Check if user can edit (CA and INDIVIDUAL can manage their own credentials)
+  const canEdit = user?.role === 'CA' || user?.role === 'INDIVIDUAL';
+  const isIndividual = user?.role === 'INDIVIDUAL';
 
   const loadCredentials = async () => {
     try {
@@ -225,11 +228,16 @@ export default function CredentialsPage() {
     }
   };
 
-  const handleDelete = async (id: number, portalName: string) => {
-    if (!confirm(`Delete credentials for "${portalName}"? This action cannot be undone.`)) return;
+  const handleDeleteRequest = (credential: Credential) => {
+    setDeletingCredential(credential);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingCredential) return;
     try {
-      await api.delete(`/credentials/${id}`);
+      await api.delete(`/credentials/${deletingCredential.id}`);
       toast.success('Credential deleted!');
+      setDeletingCredential(null);
       loadCredentials();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to delete credential');
@@ -264,6 +272,23 @@ export default function CredentialsPage() {
       password: '',
       remarks: '',
     });
+  };
+
+  // Open form with auto-selection for INDIVIDUAL users
+  const openAddForm = () => {
+    if (isIndividual && clients.length > 0) {
+      // Auto-select the first (personal) client for INDIVIDUAL users
+      const personalClient = clients[0];
+      setFormData(prev => ({ ...prev, clientId: String(personalClient.id) }));
+      setSelectedClientId(personalClient.id);
+      
+      // Also auto-select the personal firm if available
+      const personalFirm = firms.find(f => f.client.id === personalClient.id);
+      if (personalFirm) {
+        setFormData(prev => ({ ...prev, firmId: String(personalFirm.id) }));
+      }
+    }
+    setShowForm(true);
   };
 
   const togglePasswordVisibility = (id: number) => {
@@ -322,13 +347,17 @@ export default function CredentialsPage() {
                 <Shield className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Portal Credentials</h1>
-                <p className="text-sm text-gray-500">Securely store client login details for govt portals</p>
+                <h1 className="text-2xl font-bold text-gray-900">{isIndividual ? 'My Credentials' : 'Portal Credentials'}</h1>
+                <p className="text-sm text-gray-500">
+                  {isIndividual 
+                    ? 'Securely store your login details for govt portals' 
+                    : 'Securely store client login details for govt portals'}
+                </p>
               </div>
             </div>
             {canEdit && (
               <button
-                onClick={() => setShowForm(true)}
+                onClick={openAddForm}
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
               >
                 <Plus className="w-4 h-4" />
@@ -380,20 +409,22 @@ export default function CredentialsPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by client, firm, or username..."
+                  placeholder={isIndividual ? "Search by portal or username..." : "Search by client, firm, or username..."}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
-              <select
-                value={selectedClientFilter}
-                onChange={(e) => setSelectedClientFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="">All Clients</option>
-                {clients.map(client => (
-                  <option key={client.id} value={client.id}>{client.name}</option>
-                ))}
-              </select>
+              {!isIndividual && (
+                <select
+                  value={selectedClientFilter}
+                  onChange={(e) => setSelectedClientFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">All Clients</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>{client.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
         </div>
@@ -411,7 +442,8 @@ export default function CredentialsPage() {
                 </button>
               </div>
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                {!editingCredential && (
+                {/* Client/Firm selection - hide for INDIVIDUAL users */}
+                {!editingCredential && !isIndividual && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -541,11 +573,15 @@ export default function CredentialsPage() {
             <Key className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Credentials Found</h3>
             <p className="text-sm text-gray-500 mb-4">
-              {canEdit ? 'Start by adding portal credentials for your clients' : 'No portal credentials have been added yet'}
+              {canEdit 
+                ? (isIndividual 
+                    ? 'Start by adding your portal credentials (Income Tax, GST, etc.)' 
+                    : 'Start by adding portal credentials for your clients')
+                : 'No portal credentials have been added yet'}
             </p>
             {canEdit && (
               <button
-                onClick={() => setShowForm(true)}
+                onClick={openAddForm}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
@@ -636,7 +672,7 @@ export default function CredentialsPage() {
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDelete(cred.id, cred.portalName)}
+                                onClick={() => handleDeleteRequest(cred)}
                                 className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                 title="Delete"
                               >
@@ -653,6 +689,18 @@ export default function CredentialsPage() {
             ))}
           </div>
         )}
+
+      {/* Delete Credential Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingCredential}
+        onClose={() => setDeletingCredential(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Credential?"
+        message={`Are you sure you want to delete credentials for "${deletingCredential?.portalName}"? This action cannot be undone.`}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </AppLayout>
   );
 }

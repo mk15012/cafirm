@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma';
 import { hashPassword, comparePassword } from '../utils/bcrypt';
 import { generateToken } from '../utils/jwt';
 import { AuthRequest } from '../types';
+import { generateTaxDeadlineTasks, getCurrentFinancialYear } from '../utils/taxDeadlines';
 
 export async function login(req: Request, res: Response) {
   try {
@@ -48,7 +49,7 @@ export async function login(req: Request, res: Response) {
 
 export async function signup(req: Request, res: Response) {
   try {
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, role } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
@@ -70,17 +71,65 @@ export async function signup(req: Request, res: Response) {
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create new CA user (signup is only for CAs)
+    // Determine the user role (CA or INDIVIDUAL for self-signup)
+    const userRole = role === 'INDIVIDUAL' ? 'INDIVIDUAL' : 'CA';
+
+    // Create new user
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         phone,
-        role: 'CA',
+        role: userRole,
         status: 'ACTIVE',
       },
     });
+
+    // For INDIVIDUAL users, create personal client, firm, and tax deadline tasks
+    if (userRole === 'INDIVIDUAL') {
+      try {
+        // Create personal client
+        const client = await prisma.client.create({
+          data: {
+            name: `${name}'s Personal Finances`,
+            contactPerson: name,
+            email: email,
+            phone: phone || null,
+            notes: 'Auto-created for personal tax management',
+            createdById: user.id,
+          },
+        });
+
+        // Create personal firm
+        const firm = await prisma.firm.create({
+          data: {
+            name: 'Personal',
+            panNumber: 'PENDING',
+            clientId: client.id,
+            createdById: user.id,
+            status: 'Active',
+            entityType: 'INDIVIDUAL',
+            hasITR: true,
+          },
+        });
+
+        // Generate and create tax deadline tasks
+        const currentFY = getCurrentFinancialYear();
+        const taskData = generateTaxDeadlineTasks(firm.id, user.id, currentFY);
+        
+        if (taskData.length > 0) {
+          await prisma.task.createMany({
+            data: taskData,
+          });
+        }
+
+        console.log(`Created ${taskData.length} tax deadline tasks for INDIVIDUAL user: ${email}`);
+      } catch (setupError) {
+        console.error('Error setting up INDIVIDUAL user data:', setupError);
+        // Don't fail the signup, just log the error
+      }
+    }
 
     // Generate token and return
     const token = generateToken({
@@ -165,6 +214,7 @@ export async function getMe(req: Request, res: Response) {
         name: true,
         email: true,
         phone: true,
+        birthday: true,
         role: true,
         status: true,
         profilePicture: true,
@@ -248,10 +298,19 @@ export async function updateProfile(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { name, phone } = req.body;
+    const { name, phone, birthday } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Name is required' });
+    }
+
+    // Parse birthday if provided
+    let birthdayDate: Date | null = null;
+    if (birthday) {
+      birthdayDate = new Date(birthday);
+      if (isNaN(birthdayDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid birthday format' });
+      }
     }
 
     // Update user profile
@@ -260,12 +319,14 @@ export async function updateProfile(req: Request, res: Response) {
       data: {
         name: name.trim(),
         phone: phone?.trim() || null,
+        birthday: birthdayDate,
       },
       select: {
         id: true,
         name: true,
         email: true,
         phone: true,
+        birthday: true,
         role: true,
         status: true,
         createdAt: true,

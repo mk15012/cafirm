@@ -4,9 +4,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
-import { Building2, Shield, FileText, Calculator, Users, CheckCircle, Lock, Mail, User, Phone } from 'lucide-react';
+import { Building2, Shield, FileText, Calculator, Users, CheckCircle, Lock, Mail, User, Phone, Briefcase, Heart } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+type UserType = 'professional' | 'individual';
 
 export default function SignupPage() {
+  const [userType, setUserType] = useState<UserType | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +44,10 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      await signup(name, email, password, phone || undefined);
+      await signup(name, email, password, phone || undefined, userType === 'individual' ? 'INDIVIDUAL' : 'CA');
+      toast.success('Account created successfully! Welcome aboard! 🎉', {
+        duration: 4000,
+      });
       router.push('/dashboard');
     } catch (err: any) {
       // Show detailed validation errors if available
@@ -192,11 +199,102 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Form Card */}
+          {/* User Type Selection */}
+          {!userType ? (
+            <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-8 border border-slate-200">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">How will you use CA Firm Pro?</h2>
+                <p className="text-slate-500">Choose the option that best describes you</p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Professional Option */}
+                <button
+                  onClick={() => setUserType('professional')}
+                  className="w-full p-6 bg-gradient-to-br from-slate-50 to-slate-100 hover:from-primary-50 hover:to-primary-100 border-2 border-slate-200 hover:border-primary-400 rounded-2xl text-left transition-all group"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/25 group-hover:scale-105 transition-transform">
+                      <Briefcase className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-slate-900 mb-1">CA / Tax Professional</h3>
+                      <p className="text-slate-500 text-sm leading-relaxed">
+                        I&apos;m a Chartered Accountant, Tax Consultant, or run a CA firm. I need to manage clients, team members, and compliance.
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <span className="px-2 py-1 bg-primary-100 text-primary-700 text-xs font-medium rounded-full">Client Management</span>
+                        <span className="px-2 py-1 bg-primary-100 text-primary-700 text-xs font-medium rounded-full">Team Collaboration</span>
+                        <span className="px-2 py-1 bg-primary-100 text-primary-700 text-xs font-medium rounded-full">Invoicing</span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Individual Option */}
+                <button
+                  onClick={() => setUserType('individual')}
+                  className="w-full p-6 bg-gradient-to-br from-slate-50 to-slate-100 hover:from-emerald-50 hover:to-teal-50 border-2 border-slate-200 hover:border-emerald-400 rounded-2xl text-left transition-all group"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25 group-hover:scale-105 transition-transform">
+                      <User className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-slate-900 mb-1">Individual / Personal Use</h3>
+                      <p className="text-slate-500 text-sm leading-relaxed">
+                        I file my own taxes and want to organize tax documents, store portal passwords, and manage family members&apos; ITRs.
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Password Storage</span>
+                        <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full">Tax Calculator</span>
+                        <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-medium rounded-full flex items-center gap-1">
+                          <Heart className="w-3 h-3" /> Free Forever
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-slate-200">
+                <p className="text-center text-slate-600">
+                  Already have an account?{' '}
+                  <Link href="/auth/login" className="text-primary-600 hover:text-primary-700 font-semibold">
+                    Sign in
+                  </Link>
+                </p>
+              </div>
+            </div>
+          ) : (
+          /* Form Card */
           <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-8 border border-slate-200">
             <div className="text-center mb-6">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <button
+                  onClick={() => setUserType(null)}
+                  className="text-sm text-slate-500 hover:text-primary-600 flex items-center gap-1"
+                >
+                  ← Change account type
+                </button>
+              </div>
+              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-3 ${
+                userType === 'individual' 
+                  ? 'bg-emerald-100 text-emerald-700' 
+                  : 'bg-primary-100 text-primary-700'
+              }`}>
+                {userType === 'individual' ? (
+                  <><User className="w-4 h-4" /> Personal Account</>
+                ) : (
+                  <><Briefcase className="w-4 h-4" /> Professional Account</>
+                )}
+              </div>
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Create Your Account</h2>
-              <p className="text-slate-500">Start managing your practice today</p>
+              <p className="text-slate-500">
+                {userType === 'individual' 
+                  ? 'Start organizing your personal tax documents' 
+                  : 'Start managing your practice today'}
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -338,6 +436,7 @@ export default function SignupPage() {
               </p>
             </div>
           </div>
+          )}
 
           {/* Footer */}
           <div className="mt-8 text-center">
@@ -345,7 +444,9 @@ export default function SignupPage() {
               © {new Date().getFullYear()} CA Firm Pro. All rights reserved.
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              Trusted by Chartered Accountants across India
+              {userType === 'individual' 
+                ? 'Free for personal use • Secure & Private' 
+                : 'Trusted by Chartered Accountants across India'}
             </p>
           </div>
         </div>
