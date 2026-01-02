@@ -23,7 +23,10 @@ interface AppLayoutProps {
 export default function AppLayout({ children, title }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, logout } = useAuthStore();
+  const { user, logout, isLoading } = useAuthStore();
+  
+  // Determine if user is INDIVIDUAL (only after loading is complete to avoid flash)
+  const isIndividual = !isLoading && user?.role === 'INDIVIDUAL';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCAAccess, setShowCAAccess] = useState(false);
   const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -250,32 +253,39 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
 
           <nav className="flex-1 p-4 overflow-y-auto">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-3">
-              MAIN NAVIGATION
+              {isIndividual ? 'MY DOCUMENTS' : 'MAIN NAVIGATION'}
             </p>
             <NavLink href="/dashboard" icon={Activity} active={pathname === '/dashboard'}>
               Dashboard
             </NavLink>
             <NavLink href="/tasks" icon={CheckSquare} active={pathname === '/tasks' || pathname?.startsWith('/tasks/')}>
-              Tasks
+              {isIndividual ? 'My Reminders' : 'Tasks'}
             </NavLink>
             <NavLink href="/documents" icon={FileText} active={pathname === '/documents'}>
-              Documents
+              {isIndividual ? 'My Documents' : 'Documents'}
             </NavLink>
-            <NavLink href="/clients" icon={Users} active={pathname === '/clients' || pathname?.startsWith('/clients/')}>
-              Clients
-            </NavLink>
-            <NavLink href="/firms" icon={Building2} active={pathname === '/firms' || pathname?.startsWith('/firms/')}>
-              Firms
-            </NavLink>
-            <NavLink href="/invoices" icon={Receipt} active={pathname === '/invoices'}>
-              Invoices
-            </NavLink>
-            <NavLink href="/approvals" icon={Clock} active={pathname === '/approvals'}>
-              Approvals
-            </NavLink>
-            <NavLink href="/compliance" icon={Calendar} active={pathname === '/compliance'}>
-              Compliance
-            </NavLink>
+            
+            {/* CA/Team specific navigation - hide for INDIVIDUAL users and during loading */}
+            {!isLoading && !isIndividual && (
+              <>
+                <NavLink href="/clients" icon={Users} active={pathname === '/clients' || pathname?.startsWith('/clients/')}>
+                  Clients
+                </NavLink>
+                <NavLink href="/firms" icon={Building2} active={pathname === '/firms' || pathname?.startsWith('/firms/')}>
+                  Firms
+                </NavLink>
+                <NavLink href="/invoices" icon={Receipt} active={pathname === '/invoices'}>
+                  Invoices
+                </NavLink>
+                <NavLink href="/approvals" icon={Clock} active={pathname === '/approvals'}>
+                  Approvals
+                </NavLink>
+                <NavLink href="/compliance" icon={Calendar} active={pathname === '/compliance'}>
+                  Compliance
+                </NavLink>
+              </>
+            )}
+            
             {user?.role === 'CA' && (
               <>
                 <NavLink href="/users" icon={User} active={pathname === '/users'}>
@@ -298,7 +308,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
               Tax Calculator
             </NavLink>
             <NavLink href="/tools/credentials" icon={Key} active={pathname === '/tools/credentials'}>
-              Portal Credentials
+              {isIndividual ? 'My Credentials' : 'Portal Credentials'}
             </NavLink>
 
             {/* Settings Section - CA Only */}
@@ -361,13 +371,15 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setShowMeetingModal(true)}
-                  className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Calendar className="w-4 h-4" />
-                  Schedule Meeting
-                </button>
+                {!isLoading && !isIndividual && (
+                  <button
+                    onClick={() => setShowMeetingModal(true)}
+                    className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Schedule Meeting
+                  </button>
+                )}
                 <button
                   onClick={() => setShowProfileModal(true)}
                   className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity rounded-lg p-2 -m-2"

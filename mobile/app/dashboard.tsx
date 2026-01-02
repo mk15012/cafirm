@@ -60,6 +60,7 @@ export default function DashboardScreen() {
 
   const isCA = user?.role === 'CA';
   const isManager = user?.role === 'MANAGER';
+  const isIndividual = user?.role === 'INDIVIDUAL';
   const canApprove = isCA || isManager;
 
   const doLogout = async () => {
@@ -149,17 +150,25 @@ export default function DashboardScreen() {
   if (!isAuthenticated) return null;
 
   // Quick access buttons based on role
-  const quickAccessButtons = [
-    { title: 'Tasks', route: '/tasks', color: '#3b82f6', icon: '📋' },
-    { title: 'Clients', route: '/clients', color: '#6366f1', icon: '🏢' },
-    { title: 'Firms', route: '/firms', color: '#06b6d4', icon: '🏛️' },
-    { title: 'Invoices', route: '/invoices', color: '#10b981', icon: '💰' },
-    { title: 'Documents', route: '/documents', color: '#8b5cf6', icon: '📄' },
-    { title: 'Profile', route: '/profile', color: '#ec4899', icon: '👤' },
-  ];
+  const quickAccessButtons = isIndividual
+    ? [
+        // INDIVIDUAL users only see personal features
+        { title: 'My Reminders', route: '/tasks', color: '#3b82f6', icon: '📋' },
+        { title: 'My Documents', route: '/documents', color: '#8b5cf6', icon: '📄' },
+        { title: 'Profile', route: '/profile', color: '#ec4899', icon: '👤' },
+      ]
+    : [
+        // CA/Team users see full features
+        { title: 'Tasks', route: '/tasks', color: '#3b82f6', icon: '📋' },
+        { title: 'Clients', route: '/clients', color: '#6366f1', icon: '🏢' },
+        { title: 'Firms', route: '/firms', color: '#06b6d4', icon: '🏛️' },
+        { title: 'Invoices', route: '/invoices', color: '#10b981', icon: '💰' },
+        { title: 'Documents', route: '/documents', color: '#8b5cf6', icon: '📄' },
+        { title: 'Profile', route: '/profile', color: '#ec4899', icon: '👤' },
+      ];
 
-  // Add role-specific buttons
-  if (canApprove) {
+  // Add role-specific buttons (only for non-INDIVIDUAL users)
+  if (!isIndividual && canApprove) {
     quickAccessButtons.push({ title: 'Approvals', route: '/approvals', color: '#f59e0b', icon: '✅' });
     quickAccessButtons.push({ title: 'Meetings', route: '/meetings', color: '#0891b2', icon: '📅' });
   }
@@ -167,14 +176,16 @@ export default function DashboardScreen() {
     quickAccessButtons.push({ title: 'Users', route: '/users', color: '#a855f7', icon: '👥' });
     quickAccessButtons.push({ title: 'Activity', route: '/activity-logs', color: '#64748b', icon: '📊' });
     quickAccessButtons.push({ title: 'Reports', route: '/reports', color: '#dc2626', icon: '📈' });
+    quickAccessButtons.push({ title: 'Compliance', route: '/compliance', color: '#14b8a6', icon: '📅' });
   }
 
   // Tools section buttons
   const toolButtons = [
     { title: 'Tax Calc', route: '/tools/tax-calculator', color: '#059669', icon: '🧮' },
+    { title: isIndividual ? 'My Credentials' : 'Credentials', route: '/tools/credentials', color: '#7c3aed', icon: '🔐' },
   ];
   if (isCA) {
-    toolButtons.push({ title: 'Credentials', route: '/tools/credentials', color: '#7c3aed', icon: '🔐' });
+    toolButtons.push({ title: 'Services', route: '/settings/services', color: '#6366f1', icon: '📦' });
     toolButtons.push({ title: 'Subscription', route: '/settings/subscription', color: '#f59e0b', icon: '👑' });
   }
 
@@ -249,12 +260,18 @@ export default function DashboardScreen() {
         {/* Metrics Grid */}
         {metrics && (
           <View style={styles.metricsGrid}>
-            <MetricCard title="Active Tasks" value={metrics.activeTasks} color="#3b82f6" icon="📋" />
-            <MetricCard title="Pending Approvals" value={metrics.pendingApprovals} color="#a855f7" icon="⏳" />
+            <MetricCard title={isIndividual ? "My Reminders" : "Active Tasks"} value={metrics.activeTasks} color="#3b82f6" icon="📋" />
+            {!isIndividual && (
+              <MetricCard title="Pending Approvals" value={metrics.pendingApprovals} color="#a855f7" icon="⏳" />
+            )}
             <MetricCard title="Overdue Items" value={metrics.overdueItems} color="#ef4444" icon="⚠️" />
-            <MetricCard title="Documents" value={metrics.documents} color="#8b5cf6" icon="📄" />
-            <MetricCard title="Active Clients" value={metrics.activeClients} color="#10b981" icon="🏢" />
-            <MetricCard title="Firms Managed" value={metrics.firmsManaged} color="#06b6d4" icon="🏛️" />
+            <MetricCard title={isIndividual ? "My Documents" : "Documents"} value={metrics.documents} color="#8b5cf6" icon="📄" />
+            {!isIndividual && (
+              <>
+                <MetricCard title="Active Clients" value={metrics.activeClients} color="#10b981" icon="🏢" />
+                <MetricCard title="Firms Managed" value={metrics.firmsManaged} color="#06b6d4" icon="🏛️" />
+              </>
+            )}
             {isCA && (
               <MetricCard title="Monthly Revenue" value={metrics.monthlyRevenue} color="#22c55e" icon="💵" isRevenue />
             )}

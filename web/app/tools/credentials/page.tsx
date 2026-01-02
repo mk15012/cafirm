@@ -156,8 +156,9 @@ export default function CredentialsPage() {
     }
   }, [isAuthenticated, isLoading, router, user]);
 
-  // Check if user can edit (CA only)
-  const canEdit = user?.role === 'CA';
+  // Check if user can edit (CA and INDIVIDUAL can manage their own credentials)
+  const canEdit = user?.role === 'CA' || user?.role === 'INDIVIDUAL';
+  const isIndividual = user?.role === 'INDIVIDUAL';
 
   const loadCredentials = async () => {
     try {
@@ -273,6 +274,23 @@ export default function CredentialsPage() {
     });
   };
 
+  // Open form with auto-selection for INDIVIDUAL users
+  const openAddForm = () => {
+    if (isIndividual && clients.length > 0) {
+      // Auto-select the first (personal) client for INDIVIDUAL users
+      const personalClient = clients[0];
+      setFormData(prev => ({ ...prev, clientId: String(personalClient.id) }));
+      setSelectedClientId(personalClient.id);
+      
+      // Also auto-select the personal firm if available
+      const personalFirm = firms.find(f => f.client.id === personalClient.id);
+      if (personalFirm) {
+        setFormData(prev => ({ ...prev, firmId: String(personalFirm.id) }));
+      }
+    }
+    setShowForm(true);
+  };
+
   const togglePasswordVisibility = (id: number) => {
     setVisiblePasswords(prev => {
       const next = new Set(prev);
@@ -329,13 +347,17 @@ export default function CredentialsPage() {
                 <Shield className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Portal Credentials</h1>
-                <p className="text-sm text-gray-500">Securely store client login details for govt portals</p>
+                <h1 className="text-2xl font-bold text-gray-900">{isIndividual ? 'My Credentials' : 'Portal Credentials'}</h1>
+                <p className="text-sm text-gray-500">
+                  {isIndividual 
+                    ? 'Securely store your login details for govt portals' 
+                    : 'Securely store client login details for govt portals'}
+                </p>
               </div>
             </div>
             {canEdit && (
               <button
-                onClick={() => setShowForm(true)}
+                onClick={openAddForm}
                 className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
               >
                 <Plus className="w-4 h-4" />
@@ -387,20 +409,22 @@ export default function CredentialsPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by client, firm, or username..."
+                  placeholder={isIndividual ? "Search by portal or username..." : "Search by client, firm, or username..."}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
-              <select
-                value={selectedClientFilter}
-                onChange={(e) => setSelectedClientFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="">All Clients</option>
-                {clients.map(client => (
-                  <option key={client.id} value={client.id}>{client.name}</option>
-                ))}
-              </select>
+              {!isIndividual && (
+                <select
+                  value={selectedClientFilter}
+                  onChange={(e) => setSelectedClientFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">All Clients</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>{client.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
         </div>
@@ -418,7 +442,8 @@ export default function CredentialsPage() {
                 </button>
               </div>
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                {!editingCredential && (
+                {/* Client/Firm selection - hide for INDIVIDUAL users */}
+                {!editingCredential && !isIndividual && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -548,11 +573,15 @@ export default function CredentialsPage() {
             <Key className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Credentials Found</h3>
             <p className="text-sm text-gray-500 mb-4">
-              {canEdit ? 'Start by adding portal credentials for your clients' : 'No portal credentials have been added yet'}
+              {canEdit 
+                ? (isIndividual 
+                    ? 'Start by adding your portal credentials (Income Tax, GST, etc.)' 
+                    : 'Start by adding portal credentials for your clients')
+                : 'No portal credentials have been added yet'}
             </p>
             {canEdit && (
               <button
-                onClick={() => setShowForm(true)}
+                onClick={openAddForm}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />

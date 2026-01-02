@@ -31,6 +31,13 @@ export async function getRecentTasks(req: Request, res: Response) {
     if (user.role === 'CA') {
       const allFirms = await prisma.firm.findMany({ select: { id: true } });
       accessibleFirmIds = allFirms.map(f => f.id);
+    } else if (user.role === 'INDIVIDUAL') {
+      // INDIVIDUAL users see only firms they created (their personal firm)
+      const userFirms = await prisma.firm.findMany({
+        where: { createdById: user.userId },
+        select: { id: true },
+      });
+      accessibleFirmIds = userFirms.map(f => f.id);
     } else if (user.role === 'MANAGER') {
       const teamUserIds = await getTeamUserIds(user.userId);
       const mappings = await prisma.userFirmMapping.findMany({
@@ -88,6 +95,13 @@ export async function getUpcomingDeadlines(req: Request, res: Response) {
     if (user.role === 'CA') {
       const allFirms = await prisma.firm.findMany({ select: { id: true } });
       accessibleFirmIds = allFirms.map(f => f.id);
+    } else if (user.role === 'INDIVIDUAL') {
+      // INDIVIDUAL users see only firms they created (their personal firm)
+      const userFirms = await prisma.firm.findMany({
+        where: { createdById: user.userId },
+        select: { id: true },
+      });
+      accessibleFirmIds = userFirms.map(f => f.id);
     } else if (user.role === 'MANAGER') {
       const teamUserIds = await getTeamUserIds(user.userId);
       const mappings = await prisma.userFirmMapping.findMany({

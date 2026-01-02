@@ -96,6 +96,9 @@ export default function DashboardPage() {
   const [showMyBirthdayBanner, setShowMyBirthdayBanner] = useState(true);
   const [showTeamBirthdayBanner, setShowTeamBirthdayBanner] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  
+  // Determine if user is INDIVIDUAL (only after loading is complete to avoid flash)
+  const isIndividual = !isLoading && user?.role === 'INDIVIDUAL';
 
   useEffect(() => {
     initializeAuth();
@@ -280,18 +283,29 @@ export default function DashboardPage() {
 
           <nav className="flex-1 p-4 overflow-y-auto">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-3">
-              MAIN NAVIGATION
+              {isIndividual ? 'MY DOCUMENTS' : 'MAIN NAVIGATION'}
             </p>
             <NavLink href="/dashboard" icon={Activity} active>
               Dashboard
             </NavLink>
-            <NavLink href="/tasks" icon={CheckSquare}>Tasks</NavLink>
-            <NavLink href="/documents" icon={FileText}>Documents</NavLink>
-            <NavLink href="/clients" icon={Users}>Clients</NavLink>
-            <NavLink href="/firms" icon={Building2}>Firms</NavLink>
-            <NavLink href="/invoices" icon={Receipt}>Invoices</NavLink>
-            <NavLink href="/approvals" icon={Clock}>Approvals</NavLink>
-            <NavLink href="/compliance" icon={Calendar}>Compliance</NavLink>
+            <NavLink href="/tasks" icon={CheckSquare}>
+              {isIndividual ? 'My Reminders' : 'Tasks'}
+            </NavLink>
+            <NavLink href="/documents" icon={FileText}>
+              {isIndividual ? 'My Documents' : 'Documents'}
+            </NavLink>
+            
+            {/* CA/Team specific navigation - hide for INDIVIDUAL users and during loading */}
+            {!isLoading && !isIndividual && (
+              <>
+                <NavLink href="/clients" icon={Users}>Clients</NavLink>
+                <NavLink href="/firms" icon={Building2}>Firms</NavLink>
+                <NavLink href="/invoices" icon={Receipt}>Invoices</NavLink>
+                <NavLink href="/approvals" icon={Clock}>Approvals</NavLink>
+                <NavLink href="/compliance" icon={Calendar}>Compliance</NavLink>
+              </>
+            )}
+            
             {user?.role === 'CA' && (
               <>
                 <NavLink href="/users" icon={User}>Users</NavLink>
@@ -308,7 +322,7 @@ export default function DashboardPage() {
               Tax Calculator
             </NavLink>
             <NavLink href="/tools/credentials" icon={Key}>
-              Portal Credentials
+              {isIndividual ? 'My Credentials' : 'Portal Credentials'}
             </NavLink>
 
             {/* Settings Section - CA Only */}
@@ -371,13 +385,15 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setShowMeetingModal(true)}
-                  className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Calendar className="w-4 h-4" />
-                  Schedule Meeting
-                </button>
+                {!isLoading && !isIndividual && (
+                  <button
+                    onClick={() => setShowMeetingModal(true)}
+                    className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Schedule Meeting
+                  </button>
+                )}
                 <Link
                   href="/profile"
                   className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity rounded-lg p-2 -m-2"
@@ -485,25 +501,27 @@ export default function DashboardPage() {
 
           {/* Metrics Grid */}
           {metrics && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${isIndividual ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-6 mb-8`}>
               <MetricCard
                 icon={CheckSquare}
-                title="Active Tasks"
+                title={isIndividual ? "My Reminders" : "Active Tasks"}
                 value={metrics.activeTasks}
                 change={metrics.activeTasksChange}
                 changeType="positive"
-                description="Tasks in progress"
+                description={isIndividual ? "Tax deadlines" : "Tasks in progress"}
                 iconColor="text-blue-600"
                 bgColor="bg-blue-50"
               />
-              <MetricCard
-                icon={Clock}
-                title="Pending Approvals"
-                value={metrics.pendingApprovals}
-                description="Awaiting approval"
-                iconColor="text-purple-600"
-                bgColor="bg-purple-50"
-              />
+              {!isIndividual && (
+                <MetricCard
+                  icon={Clock}
+                  title="Pending Approvals"
+                  value={metrics.pendingApprovals}
+                  description="Awaiting approval"
+                  iconColor="text-purple-600"
+                  bgColor="bg-purple-50"
+                />
+              )}
               <MetricCard
                 icon={AlertCircle}
                 title="Overdue Items"
@@ -516,7 +534,7 @@ export default function DashboardPage() {
               />
               <MetricCard
                 icon={FileText}
-                title="Documents"
+                title={isIndividual ? "My Documents" : "Documents"}
                 value={metrics.documents}
                 change={metrics.documentsChange}
                 changeType="positive"
@@ -524,26 +542,30 @@ export default function DashboardPage() {
                 iconColor="text-green-600"
                 bgColor="bg-green-50"
               />
-              <MetricCard
-                icon={Users}
-                title="Active Clients"
-                value={metrics.activeClients}
-                change={metrics.activeClientsChange}
-                changeType="positive"
-                description="Total clients"
-                iconColor="text-indigo-600"
-                bgColor="bg-indigo-50"
-              />
-              <MetricCard
-                icon={Building2}
-                title="Firms Managed"
-                value={metrics.firmsManaged}
-                change={metrics.firmsManagedChange}
-                changeType="positive"
-                description="Across all clients"
-                iconColor="text-cyan-600"
-                bgColor="bg-cyan-50"
-              />
+              {!isIndividual && (
+                <>
+                  <MetricCard
+                    icon={Users}
+                    title="Active Clients"
+                    value={metrics.activeClients}
+                    change={metrics.activeClientsChange}
+                    changeType="positive"
+                    description="Total clients"
+                    iconColor="text-indigo-600"
+                    bgColor="bg-indigo-50"
+                  />
+                  <MetricCard
+                    icon={Building2}
+                    title="Firms Managed"
+                    value={metrics.firmsManaged}
+                    change={metrics.firmsManagedChange}
+                    changeType="positive"
+                    description="Across all clients"
+                    iconColor="text-cyan-600"
+                    bgColor="bg-cyan-50"
+                  />
+                </>
+              )}
               {user?.role === 'CA' && (
                 <MetricCard
                   icon={DollarSign}
@@ -576,7 +598,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <CheckSquare className="w-6 h-6 text-primary-600" />
-                  Recent Tasks
+                  {isIndividual ? 'My Reminders' : 'Recent Tasks'}
                 </h3>
                 <Link href="/tasks" className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 transition-colors">
                   View All
@@ -605,7 +627,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <AlertCircle className="w-6 h-6 text-yellow-500" />
-                  Upcoming Deadlines
+                  {isIndividual ? 'Tax Deadlines' : 'Upcoming Deadlines'}
                 </h3>
                 <span className="text-xs text-gray-500">Next 30 days</span>
               </div>

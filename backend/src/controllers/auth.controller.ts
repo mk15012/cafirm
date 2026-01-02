@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma';
 import { hashPassword, comparePassword } from '../utils/bcrypt';
 import { generateToken } from '../utils/jwt';
 import { AuthRequest } from '../types';
+import { generateTaxDeadlineTasks, getCurrentFinancialYear } from '../utils/taxDeadlines';
 
 export async function login(req: Request, res: Response) {
   try {
@@ -84,6 +85,51 @@ export async function signup(req: Request, res: Response) {
         status: 'ACTIVE',
       },
     });
+
+    // For INDIVIDUAL users, create personal client, firm, and tax deadline tasks
+    if (userRole === 'INDIVIDUAL') {
+      try {
+        // Create personal client
+        const client = await prisma.client.create({
+          data: {
+            name: `${name}'s Personal Finances`,
+            contactPerson: name,
+            email: email,
+            phone: phone || null,
+            notes: 'Auto-created for personal tax management',
+            createdById: user.id,
+          },
+        });
+
+        // Create personal firm
+        const firm = await prisma.firm.create({
+          data: {
+            name: 'Personal',
+            panNumber: 'PENDING',
+            clientId: client.id,
+            createdById: user.id,
+            status: 'Active',
+            entityType: 'INDIVIDUAL',
+            hasITR: true,
+          },
+        });
+
+        // Generate and create tax deadline tasks
+        const currentFY = getCurrentFinancialYear();
+        const taskData = generateTaxDeadlineTasks(firm.id, user.id, currentFY);
+        
+        if (taskData.length > 0) {
+          await prisma.task.createMany({
+            data: taskData,
+          });
+        }
+
+        console.log(`Created ${taskData.length} tax deadline tasks for INDIVIDUAL user: ${email}`);
+      } catch (setupError) {
+        console.error('Error setting up INDIVIDUAL user data:', setupError);
+        // Don't fail the signup, just log the error
+      }
+    }
 
     // Generate token and return
     const token = generateToken({
