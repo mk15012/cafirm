@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import AppLayout from '@/components/layout/AppLayout';
 import { User, Plus, X, Mail, Phone, Shield, UserCheck, Edit, Trash2, Users as UsersIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface UserData {
   id: string;
@@ -25,6 +26,8 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserData | null>(null);
+  const [togglingUser, setTogglingUser] = useState<UserData | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -97,26 +100,34 @@ export default function UsersPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+  const handleDeleteRequest = (userData: UserData) => {
+    setDeletingUser(userData);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingUser) return;
     try {
-      await api.delete(`/users/${id}`);
+      await api.delete(`/users/${deletingUser.id}`);
       toast.success('User deleted successfully!');
+      setDeletingUser(null);
       loadUsers();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to delete user');
     }
   };
 
-  const handleToggleStatus = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    const action = newStatus === 'ACTIVE' ? 'activate' : 'deactivate';
-    
-    if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+  const handleToggleRequest = (userData: UserData) => {
+    setTogglingUser(userData);
+  };
+
+  const handleToggleConfirm = async () => {
+    if (!togglingUser) return;
+    const newStatus = togglingUser.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     
     try {
-      await api.put(`/users/${id}`, { status: newStatus });
+      await api.put(`/users/${togglingUser.id}`, { status: newStatus });
       toast.success(`User ${newStatus === 'ACTIVE' ? 'activated' : 'deactivated'} successfully!`);
+      setTogglingUser(null);
       loadUsers();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to update user status');
@@ -373,7 +384,7 @@ export default function UsersPage() {
                   </button>
                   {String(userData.id) !== String(user?.id) && (
                     <button
-                      onClick={() => handleDelete(userData.id)}
+                      onClick={() => handleDeleteRequest(userData)}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       title="Delete"
                     >
@@ -410,7 +421,7 @@ export default function UsersPage() {
                 </span>
                 {String(userData.id) !== String(user?.id) && (
                   <button
-                    onClick={() => handleToggleStatus(userData.id, userData.status)}
+                    onClick={() => handleToggleRequest(userData)}
                     className={`text-xs font-medium px-2 py-1 rounded transition-colors ${
                       userData.status === 'ACTIVE' 
                         ? 'text-red-600 hover:bg-red-50' 
@@ -425,6 +436,34 @@ export default function UsersPage() {
           ))}
         </div>
       )}
+
+      {/* Delete User Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingUser}
+        onClose={() => setDeletingUser(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete User?"
+        message={`Are you sure you want to delete "${deletingUser?.name}"? This action cannot be undone and will remove all their assigned tasks.`}
+        confirmText="Yes, Delete User"
+        cancelText="Cancel"
+        variant="danger"
+      />
+
+      {/* Toggle User Status Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!togglingUser}
+        onClose={() => setTogglingUser(null)}
+        onConfirm={handleToggleConfirm}
+        title={togglingUser?.status === 'ACTIVE' ? 'Deactivate User?' : 'Activate User?'}
+        message={
+          togglingUser?.status === 'ACTIVE'
+            ? `Are you sure you want to deactivate "${togglingUser?.name}"? They will no longer be able to log in.`
+            : `Are you sure you want to activate "${togglingUser?.name}"? They will be able to log in again.`
+        }
+        confirmText={togglingUser?.status === 'ACTIVE' ? 'Yes, Deactivate' : 'Yes, Activate'}
+        cancelText="Cancel"
+        variant={togglingUser?.status === 'ACTIVE' ? 'warning' : 'success'}
+      />
     </AppLayout>
   );
 }

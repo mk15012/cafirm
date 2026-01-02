@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import AppLayout from '@/components/layout/AppLayout';
 import { CheckSquare, Plus, Filter, X, AlertCircle, Calendar, User, Building2, Clock, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Task {
   id: number;
@@ -48,6 +49,9 @@ export default function TasksPage() {
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ status: '', firmId: '', assignedToId: '' });
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ taskId: number; newStatus: string; taskTitle: string } | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [formData, setFormData] = useState({
     firmId: '',
@@ -144,13 +148,62 @@ export default function TasksPage() {
     }
   };
 
-  const handleStatusChange = async (taskId: number, newStatus: string) => {
+  const handleStatusChangeRequest = (taskId: number, newStatus: string, taskTitle: string, currentStatus: string) => {
+    if (newStatus === currentStatus) return;
+    setPendingStatusChange({ taskId, newStatus, taskTitle });
+    setShowStatusModal(true);
+  };
+
+  const handleStatusChangeConfirm = async () => {
+    if (!pendingStatusChange) return;
     try {
-      await api.put(`/tasks/${taskId}`, { status: newStatus });
-      toast.success('Task status updated!');
+      setUpdatingStatus(true);
+      await api.put(`/tasks/${pendingStatusChange.taskId}`, { status: pendingStatusChange.newStatus });
+      setShowStatusModal(false);
+      toast.success(`Task status updated to ${getStatusLabel(pendingStatusChange.newStatus)}! ✅`);
       loadTasks();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to update task');
+    } finally {
+      setUpdatingStatus(false);
+      setPendingStatusChange(null);
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      PENDING: 'Pending',
+      IN_PROGRESS: 'In Progress',
+      AWAITING_APPROVAL: 'Awaiting Approval',
+      COMPLETED: 'Completed',
+      ERROR: 'Error',
+    };
+    return labels[status] || status;
+  };
+
+  const getStatusModalVariant = (status: string): 'success' | 'warning' | 'danger' | 'info' => {
+    switch (status) {
+      case 'COMPLETED': return 'success';
+      case 'ERROR': return 'danger';
+      case 'AWAITING_APPROVAL': return 'warning';
+      default: return 'info';
+    }
+  };
+
+  const getStatusMessage = (status: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return 'This will mark the task as completed. Are you sure?';
+      case 'ERROR':
+        return 'This will mark the task as having an error. Are you sure?';
+      case 'AWAITING_APPROVAL':
+        return 'This will submit the task for approval. Are you sure?';
+      case 'IN_PROGRESS':
+        return 'This will mark the task as in progress.';
+      case 'PENDING':
+        return 'This will reset the task status to pending.';
+      default:
+        return `Change task status to ${getStatusLabel(status)}?`;
     }
   };
 
@@ -570,8 +623,9 @@ export default function TasksPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <select
                           value={task.status}
-                          onChange={(e) => handleStatusChange(task.id, e.target.value)}
-                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${getStatusColor(task.status)} focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer`}
+                          onChange={(e) => handleStatusChangeRequest(task.id, e.target.value, task.title, task.status)}
+                          disabled={updatingStatus && pendingStatusChange?.taskId === task.id}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${getStatusColor(task.status)} focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer disabled:opacity-50`}
                         >
                           <option value="PENDING">Pending</option>
                           <option value="IN_PROGRESS">In Progress</option>
@@ -596,6 +650,24 @@ export default function TasksPage() {
           </div>
         )}
       </div>
+
+      {/* Status Change Confirmation Modal */}
+      {showStatusModal && pendingStatusChange && (
+        <ConfirmModal
+          isOpen={showStatusModal}
+          onClose={() => {
+            setShowStatusModal(false);
+            setPendingStatusChange(null);
+          }}
+          onConfirm={handleStatusChangeConfirm}
+          title={`Change Status to "${getStatusLabel(pendingStatusChange.newStatus)}"?`}
+          message={`${getStatusMessage(pendingStatusChange.newStatus)}\n\nTask: ${pendingStatusChange.taskTitle}`}
+          confirmText={pendingStatusChange.newStatus === 'COMPLETED' ? 'Complete Task' : 'Update Status'}
+          cancelText="Cancel"
+          variant={getStatusModalVariant(pendingStatusChange.newStatus)}
+          loading={updatingStatus}
+        />
+      )}
     </AppLayout>
   );
 }

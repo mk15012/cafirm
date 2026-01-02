@@ -78,12 +78,52 @@ export default function TaskDetailScreen() {
     }
   };
 
-  const handleStatusChange = async (newStatus: string) => {
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      PENDING: 'Pending',
+      IN_PROGRESS: 'In Progress',
+      AWAITING_APPROVAL: 'Awaiting Approval',
+      COMPLETED: 'Completed',
+      ERROR: 'Error',
+    };
+    return labels[status] || status;
+  };
+
+  const getStatusMessage = (status: string) => {
+    const messages: Record<string, string> = {
+      PENDING: 'This will mark the task as pending.',
+      IN_PROGRESS: 'This will mark the task as in progress.',
+      AWAITING_APPROVAL: 'This will submit the task for approval.',
+      COMPLETED: 'This will mark the task as completed. Great job! 🎉',
+      ERROR: 'This will mark the task as having an error.',
+    };
+    return messages[status] || 'Update the task status?';
+  };
+
+  const handleStatusChangeRequest = (newStatus: string) => {
+    if (newStatus === task?.status) return;
+    
+    Alert.alert(
+      `Change to "${getStatusLabel(newStatus)}"?`,
+      getStatusMessage(newStatus),
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: newStatus === 'COMPLETED' ? 'Complete Task' : 'Update Status',
+          style: newStatus === 'ERROR' ? 'destructive' : 'default',
+          onPress: () => confirmStatusChange(newStatus),
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const confirmStatusChange = async (newStatus: string) => {
     try {
       setUpdatingStatus(true);
       await api.put(`/tasks/${params.id}`, { status: newStatus });
       loadTask();
-      Alert.alert('Success', 'Task status updated successfully');
+      Alert.alert('Success', `Task status updated to ${getStatusLabel(newStatus)}! ${newStatus === 'COMPLETED' ? '🎉' : ''}`);
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.error || 'Failed to update task status');
     } finally {
@@ -210,7 +250,7 @@ export default function TaskDetailScreen() {
                     task.status === status && styles.statusButtonActive,
                     { borderColor: getStatusColor(status) },
                   ]}
-                  onPress={() => handleStatusChange(status)}
+                  onPress={() => handleStatusChangeRequest(status)}
                   disabled={updatingStatus || task.status === status}
                 >
                   <Text

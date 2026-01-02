@@ -1,29 +1,43 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import routes from './routes';
 import { logActivityMiddleware } from './middleware/activityLog';
+import { apiLimiter } from './middleware/rateLimiter';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
+// Security: Helmet for HTTP security headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false, // Disable CSP for API server (frontend handles this)
+}));
+
+// Security: Rate limiting to prevent brute-force attacks
+app.use(apiLimiter);
+
+// CORS configuration
 app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost:8081',
     'http://127.0.0.1:8081',
     process.env.FRONTEND_URL || '',
-    // Production URLs (add your Vercel domain)
+    // Production URLs
+    'https://cafirm.vercel.app',
     'https://cafirmpro.vercel.app',
     /\.vercel\.app$/,  // Allow all Vercel preview deployments
   ].filter(Boolean),
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Body parsing
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Activity logging middleware (after auth)
 app.use(logActivityMiddleware);

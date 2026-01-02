@@ -310,45 +310,46 @@ export default function ReportsPage() {
 
                 {/* Monthly Revenue Chart */}
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Revenue Trend</h3>
-                  <div className="h-64 flex items-end gap-1">
-                    {revenueData.monthlyData.map((month, idx) => {
-                      const maxTotal = Math.max(...revenueData.monthlyData.map(m => m.total));
-                      const height = maxTotal > 0 ? (month.total / maxTotal) * 100 : 0;
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6">Monthly Revenue Trend</h3>
+                  <div className="h-72 flex items-end gap-2 px-2">
+                    {revenueData.monthlyData.map((month) => {
+                      const maxTotal = Math.max(...revenueData.monthlyData.map(m => m.total), 1);
                       const paidHeight = maxTotal > 0 ? (month.paid / maxTotal) * 100 : 0;
-                      const showLabel = idx % 2 === 0 || idx === revenueData.monthlyData.length - 1;
+                      const pendingHeight = maxTotal > 0 ? ((month.total - month.paid) / maxTotal) * 100 : 0;
+                      const [year, monthNum] = month.month.split('-');
+                      const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString('en-IN', { month: 'short' });
                       
                       return (
-                        <div key={month.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                          <div className="w-full flex flex-col items-center" style={{ height: '200px' }}>
-                            <div className="flex-1 w-full flex items-end justify-center gap-0.5">
+                        <div key={month.month} className="flex-1 flex flex-col items-center min-w-[50px]">
+                          <div className="w-full flex flex-col items-center" style={{ height: '180px' }}>
+                            <div className="flex-1 w-full flex items-end justify-center gap-1 px-1">
                               <div 
-                                className="flex-1 max-w-4 bg-emerald-500 rounded-t transition-all hover:bg-emerald-600 cursor-pointer"
-                                style={{ height: `${Math.max(paidHeight, 2)}%` }}
-                                title={`${formatMonth(month.month)} - Paid: ${formatCurrency(month.paid)}`}
+                                className="w-5 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-sm transition-all hover:from-emerald-700 hover:to-emerald-500 cursor-pointer shadow-sm"
+                                style={{ height: `${Math.max(paidHeight, 4)}%` }}
+                                title={`${monthName} ${year} - Paid: ${formatCurrency(month.paid)}`}
                               />
                               <div 
-                                className="flex-1 max-w-4 bg-orange-400 rounded-t transition-all hover:bg-orange-500 cursor-pointer"
-                                style={{ height: `${Math.max(((month.total - month.paid) / maxTotal) * 100, 2)}%` }}
-                                title={`${formatMonth(month.month)} - Pending: ${formatCurrency(month.total - month.paid)}`}
+                                className="w-5 bg-gradient-to-t from-orange-500 to-orange-300 rounded-t-sm transition-all hover:from-orange-600 hover:to-orange-400 cursor-pointer shadow-sm"
+                                style={{ height: `${Math.max(pendingHeight, 4)}%` }}
+                                title={`${monthName} ${year} - Pending: ${formatCurrency(month.total - month.paid)}`}
                               />
                             </div>
                           </div>
-                          {showLabel && (
-                            <span className="text-[10px] text-gray-500 whitespace-nowrap">{formatMonth(month.month)}</span>
-                          )}
+                          <div className="mt-2 text-center">
+                            <span className="text-xs font-medium text-gray-700">{monthName}</span>
+                          </div>
                         </div>
                       );
                     })}
                   </div>
-                  <div className="flex items-center justify-center gap-6 mt-4">
+                  <div className="flex items-center justify-center gap-8 mt-6 pt-4 border-t border-gray-100">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-emerald-500 rounded" />
-                      <span className="text-sm text-gray-600">Paid</span>
+                      <div className="w-4 h-4 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded" />
+                      <span className="text-sm font-medium text-gray-600">Paid</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-orange-400 rounded" />
-                      <span className="text-sm text-gray-600">Pending</span>
+                      <div className="w-4 h-4 bg-gradient-to-t from-orange-500 to-orange-300 rounded" />
+                      <span className="text-sm font-medium text-gray-600">Pending</span>
                     </div>
                   </div>
                 </div>
@@ -457,45 +458,46 @@ export default function ReportsPage() {
 
                 {/* Monthly Task Trend */}
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Task Trend</h3>
-                  <div className="h-48 flex items-end gap-1">
-                    {taskData.monthlyData.map((month, idx) => {
-                      const maxCreated = Math.max(...taskData.monthlyData.map(m => m.created));
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6">Monthly Task Trend</h3>
+                  <div className="h-56 flex items-end gap-2 px-2">
+                    {taskData.monthlyData.map((month) => {
+                      const maxCreated = Math.max(...taskData.monthlyData.map(m => Math.max(m.created, m.completed)), 1);
                       const createdHeight = maxCreated > 0 ? (month.created / maxCreated) * 100 : 0;
                       const completedHeight = maxCreated > 0 ? (month.completed / maxCreated) * 100 : 0;
-                      const showLabel = idx % 2 === 0 || idx === taskData.monthlyData.length - 1;
+                      const [year, monthNum] = month.month.split('-');
+                      const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString('en-IN', { month: 'short' });
                       
                       return (
-                        <div key={month.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                          <div className="w-full flex flex-col items-center" style={{ height: '140px' }}>
-                            <div className="flex-1 w-full flex items-end justify-center gap-0.5">
+                        <div key={month.month} className="flex-1 flex flex-col items-center min-w-[50px]">
+                          <div className="w-full flex flex-col items-center" style={{ height: '160px' }}>
+                            <div className="flex-1 w-full flex items-end justify-center gap-1 px-1">
                               <div 
-                                className="flex-1 max-w-4 bg-blue-500 rounded-t cursor-pointer hover:bg-blue-600"
-                                style={{ height: `${Math.max(createdHeight, 2)}%` }}
-                                title={`${formatMonth(month.month)} - Created: ${month.created}`}
+                                className="w-5 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-sm cursor-pointer hover:from-blue-700 hover:to-blue-500 transition-all shadow-sm"
+                                style={{ height: `${Math.max(createdHeight, 4)}%` }}
+                                title={`${monthName} ${year} - Created: ${month.created}`}
                               />
                               <div 
-                                className="flex-1 max-w-4 bg-emerald-500 rounded-t cursor-pointer hover:bg-emerald-600"
-                                style={{ height: `${Math.max(completedHeight, 2)}%` }}
-                                title={`${formatMonth(month.month)} - Completed: ${month.completed}`}
+                                className="w-5 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-sm cursor-pointer hover:from-emerald-700 hover:to-emerald-500 transition-all shadow-sm"
+                                style={{ height: `${Math.max(completedHeight, 4)}%` }}
+                                title={`${monthName} ${year} - Completed: ${month.completed}`}
                               />
                             </div>
                           </div>
-                          {showLabel && (
-                            <span className="text-[10px] text-gray-500 whitespace-nowrap">{formatMonth(month.month)}</span>
-                          )}
+                          <div className="mt-2 text-center">
+                            <span className="text-xs font-medium text-gray-700">{monthName}</span>
+                          </div>
                         </div>
                       );
                     })}
                   </div>
-                  <div className="flex items-center justify-center gap-6 mt-4">
+                  <div className="flex items-center justify-center gap-8 mt-6 pt-4 border-t border-gray-100">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded" />
-                      <span className="text-sm text-gray-600">Created</span>
+                      <div className="w-4 h-4 bg-gradient-to-t from-blue-600 to-blue-400 rounded" />
+                      <span className="text-sm font-medium text-gray-600">Created</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-emerald-500 rounded" />
-                      <span className="text-sm text-gray-600">Completed</span>
+                      <div className="w-4 h-4 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded" />
+                      <span className="text-sm font-medium text-gray-600">Completed</span>
                     </div>
                   </div>
                 </div>
@@ -559,28 +561,28 @@ export default function ReportsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Client Growth */}
                   <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Client Growth</h3>
-                    <div className="h-48 flex items-end gap-1">
-                      {clientData.monthlyGrowth.map((month, idx) => {
-                        const maxTotal = Math.max(...clientData.monthlyGrowth.map(m => m.total));
+                    <h3 className="text-lg font-semibold text-gray-900 mb-6">Client Growth</h3>
+                    <div className="h-56 flex items-end gap-2 px-2">
+                      {clientData.monthlyGrowth.map((month) => {
+                        const maxTotal = Math.max(...clientData.monthlyGrowth.map(m => m.total), 1);
                         const height = maxTotal > 0 ? (month.total / maxTotal) * 100 : 0;
-                        // Show label only for every 3rd month to avoid congestion
-                        const showLabel = idx % 3 === 0 || idx === clientData.monthlyGrowth.length - 1;
+                        const [year, monthNum] = month.month.split('-');
+                        const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString('en-IN', { month: 'short' });
                         
                         return (
-                          <div key={month.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                            <div className="w-full flex flex-col items-center" style={{ height: '140px' }}>
-                              <div className="flex-1 w-full flex items-end justify-center">
+                          <div key={month.month} className="flex-1 flex flex-col items-center min-w-[40px]">
+                            <div className="w-full flex flex-col items-center" style={{ height: '160px' }}>
+                              <div className="flex-1 w-full flex items-end justify-center px-1">
                                 <div 
-                                  className="w-full max-w-6 bg-primary-500 rounded-t hover:bg-primary-600 transition-colors cursor-pointer"
-                                  style={{ height: `${Math.max(height, 2)}%` }}
-                                  title={`${formatMonth(month.month)}: Total ${month.total} (New: ${month.newClients})`}
+                                  className="w-6 bg-gradient-to-t from-primary-600 to-primary-400 rounded-t-sm hover:from-primary-700 hover:to-primary-500 transition-colors cursor-pointer shadow-sm"
+                                  style={{ height: `${Math.max(height, 4)}%` }}
+                                  title={`${monthName} ${year}: Total ${month.total} (New: ${month.newClients})`}
                                 />
                               </div>
                             </div>
-                            {showLabel && (
-                              <span className="text-[10px] text-gray-500 whitespace-nowrap">{formatMonth(month.month)}</span>
-                            )}
+                            <div className="mt-2 text-center">
+                              <span className="text-xs font-medium text-gray-700">{monthName}</span>
+                            </div>
                           </div>
                         );
                       })}

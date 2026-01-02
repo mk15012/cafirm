@@ -32,9 +32,9 @@ export default function UpgradeModal({
 
   const nextPlan = currentPlan === 'FREE' ? 'Basic' : currentPlan === 'BASIC' ? 'Professional' : 'Enterprise';
   const nextPlanLimits: Record<string, Record<string, number | string>> = {
-    Basic: { clients: 15, users: 3, credentials: 25 },
-    Professional: { clients: 50, users: 10, credentials: 100 },
-    Enterprise: { clients: 'Unlimited', users: 'Unlimited', credentials: 'Unlimited' },
+    Basic: { clients: 150, users: 10, credentials: 300, firms: 150 },
+    Professional: { clients: 300, users: 30, credentials: 600, firms: 300 },
+    Enterprise: { clients: 'Unlimited', users: 'Unlimited', credentials: 'Unlimited', firms: 'Unlimited' },
   };
 
   return (

@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import AppLayout from '@/components/layout/AppLayout';
 import { Receipt, Plus, X, Filter, DollarSign, Calendar, Building2, CheckCircle, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Invoice {
   id: number;
@@ -47,6 +48,7 @@ export default function InvoicesPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
   const [filters, setFilters] = useState({ status: '', firmId: '' });
   const [selectedClientId, setSelectedClientId] = useState('');
   const [formData, setFormData] = useState({
@@ -137,11 +139,16 @@ export default function InvoicesPage() {
     }
   };
 
-  const handlePay = async (id: number) => {
-    if (!confirm('Mark this invoice as paid?')) return;
+  const handlePayRequest = (invoice: Invoice) => {
+    setPayingInvoice(invoice);
+  };
+
+  const handlePayConfirm = async () => {
+    if (!payingInvoice) return;
     try {
-      await api.put(`/invoices/${id}/pay`, {});
+      await api.put(`/invoices/${payingInvoice.id}/pay`, {});
       toast.success('Invoice marked as paid!');
+      setPayingInvoice(null);
       loadInvoices();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to mark as paid');
@@ -516,7 +523,7 @@ export default function InvoicesPage() {
                         <div className="flex items-center gap-3">
                           {invoice.status !== 'PAID' && (
                             <button
-                              onClick={() => handlePay(invoice.id)}
+                              onClick={() => handlePayRequest(invoice)}
                               className="flex items-center gap-1 text-green-600 hover:text-green-700 font-medium"
                             >
                               <CheckCircle className="w-4 h-4" />
@@ -536,6 +543,18 @@ export default function InvoicesPage() {
           </div>
         )}
       </div>
+
+      {/* Mark as Paid Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!payingInvoice}
+        onClose={() => setPayingInvoice(null)}
+        onConfirm={handlePayConfirm}
+        title="Mark Invoice as Paid?"
+        message={`Are you sure you want to mark invoice #${payingInvoice?.invoiceNumber} (₹${payingInvoice?.totalAmount?.toLocaleString('en-IN')}) as paid?`}
+        confirmText="Yes, Mark as Paid"
+        cancelText="Cancel"
+        variant="success"
+      />
     </AppLayout>
   );
 }

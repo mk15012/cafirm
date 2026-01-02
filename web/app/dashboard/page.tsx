@@ -9,10 +9,11 @@ import { format } from 'date-fns';
 import { 
   CheckSquare, Clock, AlertCircle, FileText, Users, Building2, 
   DollarSign, Receipt, Calendar, Activity, User, LogOut, Menu, X, Shield,
-  Calculator, Key
+  Calculator, Key, Cake, PartyPopper, BarChart3, Package, CreditCard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface DashboardMetrics {
   activeTasks: number;
@@ -56,6 +57,17 @@ interface Deadline {
   priority: string;
 }
 
+interface BirthdayData {
+  isMyBirthday: boolean;
+  myName?: string;
+  teamBirthdays: Array<{
+    id: number;
+    name: string;
+    role: string;
+    isMe: boolean;
+  }>;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout, initializeAuth } = useAuthStore();
@@ -80,6 +92,10 @@ export default function DashboardPage() {
   const [firms, setFirms] = useState<Array<{ id: string; name: string; clientId?: number; client?: { id: number; name: string } }>>([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [submittingMeeting, setSubmittingMeeting] = useState(false);
+  const [birthdayData, setBirthdayData] = useState<BirthdayData | null>(null);
+  const [showMyBirthdayBanner, setShowMyBirthdayBanner] = useState(true);
+  const [showTeamBirthdayBanner, setShowTeamBirthdayBanner] = useState(true);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     initializeAuth();
@@ -106,6 +122,15 @@ export default function DashboardPage() {
     } finally {
       setLoadingClients(false);
     }
+  };
+
+  const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
   };
 
   const handleMeetingSubmit = async (e: React.FormEvent) => {
@@ -168,15 +193,17 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       console.log('Loading dashboard data...');
-      const [metricsRes, tasksRes, deadlinesRes] = await Promise.all([
+      const [metricsRes, tasksRes, deadlinesRes, birthdayRes] = await Promise.all([
         api.get('/dashboard/metrics'),
         api.get('/dashboard/recent-tasks'),
         api.get('/dashboard/upcoming-deadlines'),
+        api.get('/dashboard/birthdays-today'),
       ]);
       console.log('Dashboard data loaded successfully');
       setMetrics(metricsRes.data);
       setRecentTasks(tasksRes.data || []);
       setUpcomingDeadlines(deadlinesRes.data || []);
+      setBirthdayData(birthdayRes.data);
       setDataLoaded(true);
     } catch (error: any) {
       console.error('Failed to load dashboard:', error);
@@ -264,10 +291,12 @@ export default function DashboardPage() {
             <NavLink href="/firms" icon={Building2}>Firms</NavLink>
             <NavLink href="/invoices" icon={Receipt}>Invoices</NavLink>
             <NavLink href="/approvals" icon={Clock}>Approvals</NavLink>
+            <NavLink href="/compliance" icon={Calendar}>Compliance</NavLink>
             {user?.role === 'CA' && (
               <>
                 <NavLink href="/users" icon={User}>Users</NavLink>
                 <NavLink href="/activity-logs" icon={Activity}>Activity Log</NavLink>
+                <NavLink href="/reports" icon={BarChart3}>Reports</NavLink>
               </>
             )}
 
@@ -278,10 +307,23 @@ export default function DashboardPage() {
             <NavLink href="/tools/tax-calculator" icon={Calculator}>
               Tax Calculator
             </NavLink>
+            <NavLink href="/tools/credentials" icon={Key}>
+              Portal Credentials
+            </NavLink>
+
+            {/* Settings Section - CA Only */}
             {user?.role === 'CA' && (
-              <NavLink href="/tools/credentials" icon={Key}>
-                Portal Credentials
-              </NavLink>
+              <>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 mt-6 px-3">
+                  SETTINGS
+                </p>
+                <NavLink href="/settings/services" icon={Package}>
+                  Services & Pricing
+                </NavLink>
+                <NavLink href="/settings/subscription" icon={CreditCard}>
+                  Subscription
+                </NavLink>
+              </>
             )}
           </nav>
 
@@ -349,7 +391,7 @@ export default function DashboardPage() {
                   </div>
                 </Link>
                 <button
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                   title="Logout"
                 >
@@ -362,6 +404,75 @@ export default function DashboardPage() {
 
         {/* Dashboard Content */}
         <main className="p-4 sm:p-6 lg:p-8">
+          {/* Birthday Greeting - Show if it's user's birthday */}
+          {birthdayData?.isMyBirthday && showMyBirthdayBanner && (
+            <div className="mb-6 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-xl shadow-lg p-6 text-white relative overflow-hidden">
+              {/* Close button */}
+              <button
+                onClick={() => setShowMyBirthdayBanner(false)}
+                className="absolute top-3 right-3 z-20 w-8 h-8 bg-white/20 hover:bg-white/30 backdrop-blur rounded-full flex items-center justify-center transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+              <div className="absolute inset-0 opacity-20">
+                <div className="absolute top-2 left-10 text-4xl">🎈</div>
+                <div className="absolute top-4 right-20 text-3xl">🎂</div>
+                <div className="absolute bottom-2 left-1/4 text-3xl">🎁</div>
+                <div className="absolute bottom-4 right-10 text-4xl">🎉</div>
+                <div className="absolute top-1/2 left-1/2 text-2xl">✨</div>
+              </div>
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="w-16 h-16 bg-white/20 backdrop-blur rounded-full flex items-center justify-center">
+                  <Cake className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold mb-1 flex items-center gap-2">
+                    <PartyPopper className="w-8 h-8" />
+                    Happy Birthday, {user?.name?.split(' ')[0]}! 🎉
+                  </h1>
+                  <p className="text-white/90 text-lg">
+                    Wishing you a fantastic day filled with joy and success! 🌟
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Team Birthdays - Show for CA and Manager when there are team birthdays */}
+          {(user?.role === 'CA' || user?.role === 'MANAGER') && birthdayData?.teamBirthdays && birthdayData.teamBirthdays.filter(b => !b.isMe).length > 0 && showTeamBirthdayBanner && (
+            <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl shadow-sm p-4 relative">
+              {/* Close button */}
+              <button
+                onClick={() => setShowTeamBirthdayBanner(false)}
+                className="absolute top-2 right-2 w-7 h-7 bg-amber-100 hover:bg-amber-200 rounded-full flex items-center justify-center transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4 text-amber-700" />
+              </button>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                  <Cake className="w-5 h-5 text-amber-600" />
+                </div>
+                <h3 className="font-semibold text-amber-900">🎂 Today's Birthdays</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {birthdayData.teamBirthdays.filter(b => !b.isMe).map((person) => (
+                  <div
+                    key={person.id}
+                    className="inline-flex items-center gap-2 bg-white border border-amber-200 rounded-full px-4 py-2 shadow-sm"
+                  >
+                    <span className="text-lg">🎈</span>
+                    <span className="font-medium text-gray-900">{person.name}</span>
+                    <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
+                      {person.role}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Welcome Section */}
           <div className="mb-8 bg-gradient-to-r from-primary-600 to-primary-800 rounded-xl shadow-lg p-6 text-white">
             <h1 className="text-3xl font-bold mb-2">
@@ -740,6 +851,18 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+        title="Confirm Logout"
+        message="Are you sure you want to logout? You will need to sign in again to access your account."
+        confirmText="Logout"
+        cancelText="Cancel"
+        variant="warning"
+      />
     </div>
   );
 }

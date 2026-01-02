@@ -1,221 +1,202 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>CA Firm Pro Icon Generator</title>
-  <style>
-    body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      background: #1e293b;
-      font-family: Arial, sans-serif;
-      gap: 40px;
-    }
-    h2 { color: white; margin-bottom: 10px; }
-    p { color: #94a3b8; font-size: 14px; }
-    
-    /* Main App Icon - 1024x1024 */
-    .icon-container {
-      width: 1024px;
-      height: 1024px;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      border-radius: 224px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-    }
-    
-    .icon-inner {
-      width: 600px;
-      height: 600px;
-      background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
-      border-radius: 140px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 10px 40px rgba(34, 211, 238, 0.3);
-    }
-    
-    /* Building Grid Icon */
-    .building-icon {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(5, 1fr);
-      gap: 20px;
-      width: 320px;
-      height: 400px;
-    }
-    
-    .window {
-      background: #0f172a;
-      border-radius: 12px;
-    }
-    
-    /* Preview sizes */
-    .preview {
-      display: flex;
-      gap: 40px;
-      align-items: flex-end;
-    }
-    
-    .preview-icon {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    }
-    
-    .preview-icon.large {
-      width: 192px;
-      height: 192px;
-      border-radius: 42px;
-    }
-    
-    .preview-icon.medium {
-      width: 96px;
-      height: 96px;
-      border-radius: 21px;
-    }
-    
-    .preview-icon.small {
-      width: 48px;
-      height: 48px;
-      border-radius: 10px;
-    }
-    
-    .preview-inner {
-      background: linear-gradient(135deg, #22d3ee 0%, #0ea5e9 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 30%;
-    }
-    
-    .preview-icon.large .preview-inner { width: 112px; height: 112px; }
-    .preview-icon.medium .preview-inner { width: 56px; height: 56px; }
-    .preview-icon.small .preview-inner { width: 28px; height: 28px; }
-    
-    .mini-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(5, 1fr);
-      gap: 2px;
-    }
-    
-    .preview-icon.large .mini-grid { width: 60px; height: 75px; gap: 4px; }
-    .preview-icon.medium .mini-grid { width: 30px; height: 38px; gap: 2px; }
-    .preview-icon.small .mini-grid { width: 15px; height: 19px; gap: 1px; }
-    
-    .mini-window {
-      background: #0f172a;
-      border-radius: 2px;
-    }
-
-    .instructions {
-      background: #1e293b;
-      padding: 30px;
-      border-radius: 16px;
-      max-width: 600px;
-      border: 1px solid #334155;
-    }
-    
-    .instructions h3 { color: #22d3ee; margin-bottom: 15px; }
-    .instructions ol { color: #e2e8f0; line-height: 2; }
-  </style>
+    <title>CA Firm Pro - App Icon Generator</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #1a1a2e;
+            font-family: system-ui, -apple-system, sans-serif;
+            color: white;
+        }
+        h1 { margin-bottom: 10px; }
+        p { color: #888; margin-bottom: 30px; }
+        .icon-container {
+            width: 512px;
+            height: 512px;
+            border-radius: 110px;
+            background: linear-gradient(135deg, #FBBF24 0%, #D97706 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 60px rgba(251, 191, 36, 0.3);
+        }
+        .building-icon {
+            width: 280px;
+            height: 280px;
+        }
+        canvas {
+            display: none;
+        }
+        .buttons {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .btn-primary {
+            background: #FBBF24;
+            color: #000;
+        }
+        .btn-secondary {
+            background: #333;
+            color: #fff;
+        }
+        .instructions {
+            margin-top: 40px;
+            padding: 20px;
+            background: #252540;
+            border-radius: 12px;
+            max-width: 500px;
+            text-align: left;
+        }
+        .instructions h3 { margin-top: 0; color: #FBBF24; }
+        .instructions ol { padding-left: 20px; }
+        .instructions li { margin: 8px 0; color: #ccc; }
+        .instructions code { background: #333; padding: 2px 6px; border-radius: 4px; }
+    </style>
 </head>
 <body>
-  <h2>CA Firm Pro - App Icon</h2>
-  <p>Right-click on the large icon below and "Save Image As" to download</p>
-  
-  <!-- Main Icon for Export -->
-  <div class="icon-container" id="main-icon">
-    <div class="icon-inner">
-      <div class="building-icon">
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-        <div class="window"></div>
-      </div>
+    <h1>CA Firm Pro App Icon</h1>
+    <p>Matches the web app branding</p>
+    
+    <div class="icon-container" id="icon">
+        <!-- Building2 icon from Lucide -->
+        <svg class="building-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
+            <path d="M9 22v-4h6v4"/>
+            <path d="M8 6h.01"/>
+            <path d="M16 6h.01"/>
+            <path d="M12 6h.01"/>
+            <path d="M12 10h.01"/>
+            <path d="M12 14h.01"/>
+            <path d="M16 10h.01"/>
+            <path d="M16 14h.01"/>
+            <path d="M8 10h.01"/>
+            <path d="M8 14h.01"/>
+        </svg>
     </div>
-  </div>
+    
+    <canvas id="canvas" width="1024" height="1024"></canvas>
+    
+    <div class="buttons">
+        <button class="btn-primary" onclick="downloadIcon()">Download icon.png (1024x1024)</button>
+        <button class="btn-secondary" onclick="downloadAdaptive()">Download adaptive-icon.png</button>
+    </div>
+    
+    <div class="instructions">
+        <h3>How to use:</h3>
+        <ol>
+            <li>Click <strong>"Download icon.png"</strong> button above</li>
+            <li>Save the file to <code>mobile/assets/icon.png</code></li>
+            <li>Click <strong>"Download adaptive-icon.png"</strong> and save to same folder</li>
+            <li>Commit and rebuild:
+                <br><code>git add -A && git commit -m "Add app icon"</code>
+                <br><code>git push && cd mobile && eas build --platform android --profile preview</code>
+            </li>
+        </ol>
+    </div>
 
-  <h2>Preview at Different Sizes</h2>
-  <div class="preview">
-    <div>
-      <div class="preview-icon large">
-        <div class="preview-inner">
-          <div class="mini-grid">
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-          </div>
-        </div>
-      </div>
-      <p style="text-align:center">192px</p>
-    </div>
-    <div>
-      <div class="preview-icon medium">
-        <div class="preview-inner">
-          <div class="mini-grid">
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-          </div>
-        </div>
-      </div>
-      <p style="text-align:center">96px</p>
-    </div>
-    <div>
-      <div class="preview-icon small">
-        <div class="preview-inner">
-          <div class="mini-grid">
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-            <div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div><div class="mini-window"></div>
-          </div>
-        </div>
-      </div>
-      <p style="text-align:center">48px</p>
-    </div>
-  </div>
-
-  <div class="instructions">
-    <h3>📱 How to Create App Icons:</h3>
-    <ol>
-      <li>Open this file in Chrome browser</li>
-      <li>Take a screenshot of the large icon (1024x1024)</li>
-      <li>Or use browser DevTools: Right-click → Inspect → Select icon → Screenshot node</li>
-      <li>Save as <strong>icon.png</strong> and <strong>adaptive-icon.png</strong></li>
-      <li>Replace files in <code>/mobile/assets/</code></li>
-      <li>Rebuild the APK</li>
-    </ol>
-  </div>
+    <script>
+        function drawIcon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            const scale = size / 512;
+            
+            // Clear
+            ctx.clearRect(0, 0, size, size);
+            
+            // Gradient background
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#FBBF24');
+            gradient.addColorStop(1, '#D97706');
+            
+            // Rounded rectangle
+            const radius = 110 * scale;
+            ctx.beginPath();
+            ctx.roundRect(0, 0, size, size, radius);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Draw building icon
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 3 * scale;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            const cx = size / 2;
+            const cy = size / 2;
+            const iconScale = size / 4;
+            
+            // Main building rectangle
+            const bx = cx - iconScale * 0.67;
+            const by = cy - iconScale * 0.92;
+            const bw = iconScale * 1.33;
+            const bh = iconScale * 1.67;
+            const br = iconScale * 0.17;
+            
+            ctx.beginPath();
+            ctx.roundRect(bx, by, bw, bh, br);
+            ctx.stroke();
+            
+            // Door
+            ctx.beginPath();
+            ctx.moveTo(cx - iconScale * 0.25, cy + iconScale * 0.75);
+            ctx.lineTo(cx - iconScale * 0.25, cy + iconScale * 0.42);
+            ctx.lineTo(cx + iconScale * 0.25, cy + iconScale * 0.42);
+            ctx.lineTo(cx + iconScale * 0.25, cy + iconScale * 0.75);
+            ctx.stroke();
+            
+            // Windows (dots)
+            const dotRadius = iconScale * 0.04;
+            const windowPositions = [
+                [-0.33, -0.58], [0, -0.58], [0.33, -0.58],  // top row
+                [-0.33, -0.25], [0, -0.25], [0.33, -0.25],  // middle row
+                [-0.33, 0.08], [0, 0.08], [0.33, 0.08],     // bottom row
+            ];
+            
+            windowPositions.forEach(([wx, wy]) => {
+                ctx.beginPath();
+                ctx.arc(cx + wx * iconScale, cy + wy * iconScale, dotRadius, 0, Math.PI * 2);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+            });
+        }
+        
+        function downloadIcon() {
+            const canvas = document.getElementById('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            drawIcon(canvas, 1024);
+            
+            const link = document.createElement('a');
+            link.download = 'icon.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        function downloadAdaptive() {
+            const canvas = document.getElementById('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            drawIcon(canvas, 1024);
+            
+            const link = document.createElement('a');
+            link.download = 'adaptive-icon.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+    </script>
 </body>
 </html>
-

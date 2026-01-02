@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
@@ -34,6 +35,17 @@ interface Task {
   assignedTo: { name: string };
 }
 
+interface BirthdayData {
+  isMyBirthday: boolean;
+  myName?: string;
+  teamBirthdays: Array<{
+    id: number;
+    name: string;
+    role: string;
+    isMe: boolean;
+  }>;
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -42,6 +54,9 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [birthdayData, setBirthdayData] = useState<BirthdayData | null>(null);
+  const [showMyBirthdayBanner, setShowMyBirthdayBanner] = useState(true);
+  const [showTeamBirthdayBanner, setShowTeamBirthdayBanner] = useState(true);
 
   const isCA = user?.role === 'CA';
   const isManager = user?.role === 'MANAGER';
@@ -85,12 +100,14 @@ export default function DashboardScreen() {
     if (dataLoaded) return;
     try {
       setLoading(true);
-      const [metricsRes, tasksRes] = await Promise.all([
+      const [metricsRes, tasksRes, birthdayRes] = await Promise.all([
         api.get('/dashboard/metrics'),
         api.get('/dashboard/recent-tasks'),
+        api.get('/dashboard/birthdays-today'),
       ]);
       setMetrics(metricsRes.data);
       setRecentTasks(tasksRes.data || []);
+      setBirthdayData(birthdayRes.data);
       setDataLoaded(true);
     } catch (error: any) {
       console.error('Failed to load dashboard:', error);
@@ -163,10 +180,58 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" backgroundColor="#1e293b" />
       <ScrollView
         style={styles.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0ea5e9']} />}
       >
+        {/* Birthday Greeting - Show if it's user's birthday */}
+        {birthdayData?.isMyBirthday && showMyBirthdayBanner && (
+          <View style={styles.birthdayBanner}>
+            <TouchableOpacity 
+              style={styles.bannerCloseButton}
+              onPress={() => setShowMyBirthdayBanner(false)}
+            >
+              <Text style={styles.bannerCloseText}>✕</Text>
+            </TouchableOpacity>
+            <View style={styles.birthdayIconContainer}>
+              <Text style={styles.birthdayEmoji}>🎂</Text>
+            </View>
+            <View style={styles.birthdayContent}>
+              <Text style={styles.birthdayTitle}>🎉 Happy Birthday, {user?.name?.split(' ')[0]}! 🎉</Text>
+              <Text style={styles.birthdaySubtitle}>Wishing you a fantastic day! 🌟</Text>
+            </View>
+            <Text style={styles.birthdayDecor}>🎈🎁</Text>
+          </View>
+        )}
+
+        {/* Team Birthdays - Show for CA and Manager users */}
+        {(isCA || isManager) && birthdayData?.teamBirthdays && birthdayData.teamBirthdays.filter(b => !b.isMe).length > 0 && showTeamBirthdayBanner && (
+          <View style={styles.teamBirthdayBanner}>
+            <TouchableOpacity 
+              style={styles.teamBannerCloseButton}
+              onPress={() => setShowTeamBirthdayBanner(false)}
+            >
+              <Text style={styles.teamBannerCloseText}>✕</Text>
+            </TouchableOpacity>
+            <View style={styles.teamBirthdayHeader}>
+              <Text style={styles.teamBirthdayIcon}>🎂</Text>
+              <Text style={styles.teamBirthdayTitle}>Today's Birthdays</Text>
+            </View>
+            <View style={styles.teamBirthdayList}>
+              {birthdayData.teamBirthdays.filter(b => !b.isMe).map((person) => (
+                <View key={person.id} style={styles.birthdayPerson}>
+                  <Text style={styles.birthdayPersonEmoji}>🎈</Text>
+                  <Text style={styles.birthdayPersonName}>{person.name}</Text>
+                  <View style={styles.birthdayPersonRole}>
+                    <Text style={styles.birthdayPersonRoleText}>{person.role}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Header */}
         <View style={styles.header}>
           <View>
@@ -187,8 +252,12 @@ export default function DashboardScreen() {
             <MetricCard title="Active Tasks" value={metrics.activeTasks} color="#3b82f6" icon="📋" />
             <MetricCard title="Pending Approvals" value={metrics.pendingApprovals} color="#a855f7" icon="⏳" />
             <MetricCard title="Overdue Items" value={metrics.overdueItems} color="#ef4444" icon="⚠️" />
+            <MetricCard title="Documents" value={metrics.documents} color="#8b5cf6" icon="📄" />
             <MetricCard title="Active Clients" value={metrics.activeClients} color="#10b981" icon="🏢" />
             <MetricCard title="Firms Managed" value={metrics.firmsManaged} color="#06b6d4" icon="🏛️" />
+            {isCA && (
+              <MetricCard title="Monthly Revenue" value={metrics.monthlyRevenue} color="#22c55e" icon="💵" isRevenue />
+            )}
             {(isCA || isManager) && (
               <MetricCard title="Unpaid Invoices" value={metrics.unpaidInvoices} color="#f97316" icon="💰" />
             )}
@@ -261,12 +330,24 @@ export default function DashboardScreen() {
   );
 }
 
-function MetricCard({ title, value, color, icon }: { title: string; value: number; color: string; icon: string }) {
+function MetricCard({ title, value, color, icon, isRevenue }: { title: string; value: number; color: string; icon: string; isRevenue?: boolean }) {
+  const formatValue = () => {
+    if (isRevenue) {
+      if (value >= 100000) {
+        return `₹${(value / 100000).toFixed(1)}L`;
+      } else if (value >= 1000) {
+        return `₹${(value / 1000).toFixed(1)}K`;
+      }
+      return `₹${value}`;
+    }
+    return value;
+  };
+
   return (
     <View style={[styles.metricCard, { borderLeftColor: color }]}>
       <View style={styles.metricHeader}>
         <Text style={styles.metricIcon}>{icon}</Text>
-        <Text style={styles.metricValue}>{value}</Text>
+        <Text style={styles.metricValue}>{formatValue()}</Text>
       </View>
       <Text style={styles.metricTitle}>{title}</Text>
     </View>
@@ -350,4 +431,134 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   statusBadgeText: { color: 'white', fontSize: 10, fontWeight: '600' },
   taskDueDate: { fontSize: 12, color: '#94a3b8' },
+  // Birthday styles
+  birthdayBanner: {
+    backgroundColor: '#ec4899',
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    position: 'relative',
+  },
+  bannerCloseButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  bannerCloseText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  birthdayIconContainer: {
+    width: 48,
+    height: 48,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  birthdayEmoji: {
+    fontSize: 24,
+  },
+  birthdayContent: {
+    flex: 1,
+  },
+  birthdayTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 2,
+  },
+  birthdaySubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  birthdayDecor: {
+    fontSize: 20,
+  },
+  // Team birthday styles
+  teamBirthdayBanner: {
+    backgroundColor: '#fffbeb',
+    margin: 16,
+    marginBottom: 0,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    position: 'relative',
+  },
+  teamBannerCloseButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 22,
+    height: 22,
+    backgroundColor: '#fef3c7',
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  teamBannerCloseText: {
+    color: '#b45309',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  teamBirthdayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  teamBirthdayIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  teamBirthdayTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#92400e',
+  },
+  teamBirthdayList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  birthdayPerson: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    gap: 6,
+  },
+  birthdayPersonEmoji: {
+    fontSize: 14,
+  },
+  birthdayPersonName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  birthdayPersonRole: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  birthdayPersonRoleText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#92400e',
+  },
 });

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 import { Building2, Shield, FileText, Calculator, Users, CheckCircle, Lock, Mail } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -21,6 +22,10 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
+      toast.success('Welcome back! You are now logged in.', {
+        duration: 3000,
+        icon: '👋',
+      });
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed');

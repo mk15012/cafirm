@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 import { Building2, Shield, FileText, Calculator, Users, CheckCircle, Lock, Mail, User, Phone } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
@@ -41,9 +42,19 @@ export default function SignupPage() {
 
     try {
       await signup(name, email, password, phone || undefined);
+      toast.success('Account created successfully! Welcome aboard! 🎉', {
+        duration: 4000,
+      });
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Signup failed');
+      // Show detailed validation errors if available
+      const errorData = err.response?.data;
+      if (errorData?.details && Array.isArray(errorData.details)) {
+        const messages = errorData.details.map((d: any) => d.message).join('. ');
+        setError(messages || errorData.error || 'Signup failed');
+      } else {
+        setError(errorData?.error || 'Signup failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -303,7 +314,7 @@ export default function SignupPage() {
                   </div>
                 </div>
               </div>
-              <p className="text-xs text-slate-500 -mt-2">Password must be at least 6 characters</p>
+              <p className="text-xs text-slate-500 -mt-2">Password must be at least 6 characters with letters and numbers</p>
 
               <button
                 type="submit"

@@ -383,3 +383,4 @@ VALUES
   ('PROFESSIONAL', 'Professional', 'For established CA firms with multiple team members', 99900, 999900, 100, 10, 10, 5120, 200, '{"taxCalculator":true,"approvalWorkflow":true,"activityLogs":true,"documentManagement":true,"invoiceManagement":true,"meetings":true,"customBranding":true,"apiAccess":false,"prioritySupport":true}', true, true, 2, NOW(), NOW()),
   ('ENTERPRISE', 'Enterprise', 'For large CA firms with unlimited needs', 249900, 2499900, -1, -1, -1, -1, -1, '{"taxCalculator":true,"approvalWorkflow":true,"activityLogs":true,"documentManagement":true,"invoiceManagement":true,"meetings":true,"customBranding":true,"apiAccess":true,"prioritySupport":true}', true, false, 3, NOW(), NOW());
 
+

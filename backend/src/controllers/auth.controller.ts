@@ -165,6 +165,7 @@ export async function getMe(req: Request, res: Response) {
         name: true,
         email: true,
         phone: true,
+        birthday: true,
         role: true,
         status: true,
         profilePicture: true,
@@ -248,10 +249,19 @@ export async function updateProfile(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { name, phone } = req.body;
+    const { name, phone, birthday } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Name is required' });
+    }
+
+    // Parse birthday if provided
+    let birthdayDate: Date | null = null;
+    if (birthday) {
+      birthdayDate = new Date(birthday);
+      if (isNaN(birthdayDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid birthday format' });
+      }
     }
 
     // Update user profile
@@ -260,12 +270,14 @@ export async function updateProfile(req: Request, res: Response) {
       data: {
         name: name.trim(),
         phone: phone?.trim() || null,
+        birthday: birthdayDate,
       },
       select: {
         id: true,
         name: true,
         email: true,
         phone: true,
+        birthday: true,
         role: true,
         status: true,
         createdAt: true,

@@ -13,10 +13,15 @@ dist/
 .next/
 out/
 
-# Environment variables (production only - dev files are tracked)
+# Environment variables (NEVER commit these!)
+.env
+.env.local
 .env.production
 .env.production.local
-# Note: .env and .env.local are tracked for easy dev setup
+.env.temp
+backend/.env
+web/.env.local
+mobile/.env
 
 # Debug
 npm-debug.log*
@@ -33,6 +38,14 @@ yarn-error.log*
 
 # Prisma
 *.prisma.bak
+*.db
+
+# Local development files (don't commit these)
+backend/prisma/cleanup-local.js
+backend/prisma/cleanup.js
+backend/prisma/dev.db
+*.temp
+.env.temp
 
 # Uploads
 uploads/
