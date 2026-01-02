@@ -11,6 +11,7 @@ interface UserProfile {
   name: string;
   email: string;
   phone?: string;
+  birthday?: string;
   role: string;
   status: string;
   reportsTo?: { id: string; name: string };
@@ -45,6 +46,7 @@ export default function ProfileScreen() {
   const [editData, setEditData] = useState({
     name: '',
     phone: '',
+    birthday: '',
   });
   const [changingPassword, setChangingPassword] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -81,6 +83,7 @@ export default function ProfileScreen() {
       setEditData({
         name: response.data.name || '',
         phone: response.data.phone || '',
+        birthday: response.data.birthday ? response.data.birthday.split('T')[0] : '',
       });
     } catch (err: any) {
       console.error('Profile load error:', err);
@@ -99,6 +102,7 @@ export default function ProfileScreen() {
         setEditData({
           name: currentUser.name,
           phone: '',
+          birthday: '',
         });
       }
     } finally {
@@ -321,7 +325,11 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={[styles.tab, activeTab === 'edit' && styles.tabActive]}
                 onPress={() => {
-                  setEditData({ name: displayProfile?.name || '', phone: displayProfile?.phone || '' });
+                  setEditData({ 
+                    name: displayProfile?.name || '', 
+                    phone: displayProfile?.phone || '',
+                    birthday: displayProfile?.birthday ? displayProfile.birthday.split('T')[0] : '',
+                  });
                   setActiveTab('edit');
                 }}
               >
@@ -353,6 +361,12 @@ export default function ProfileScreen() {
                     <Text style={[styles.statusText, { color: displayProfile.status === 'ACTIVE' ? '#059669' : '#6b7280' }]}>{displayProfile.status}</Text>
                   </View>
                 </View>
+                {displayProfile.birthday && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>🎂 Birthday</Text>
+                    <Text style={styles.infoValue}>{formatDate(displayProfile.birthday)}</Text>
+                  </View>
+                )}
                 {displayProfile.reportsTo && (
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>👤 Reports To</Text>
@@ -389,6 +403,16 @@ export default function ProfileScreen() {
                   onChangeText={(text) => setEditData({ ...editData, phone: text })}
                   keyboardType="phone-pad"
                 />
+
+                <Text style={styles.inputLabel}>🎂 Birthday</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="YYYY-MM-DD (e.g., 1990-01-15)"
+                  placeholderTextColor="#9ca3af"
+                  value={editData.birthday}
+                  onChangeText={(text) => setEditData({ ...editData, birthday: text })}
+                />
+                <Text style={styles.inputHint}>Add your birthday to receive greetings!</Text>
                 
                 <TouchableOpacity
                   style={[styles.changePasswordButton, savingProfile && styles.buttonDisabled]}
@@ -573,6 +597,7 @@ const styles = StyleSheet.create({
   passwordSubtitle: { fontSize: 14, color: '#64748b', marginBottom: 20 },
   inputLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
   input: { backgroundColor: '#f1f5f9', borderRadius: 12, padding: 14, marginBottom: 16, fontSize: 16, color: '#0f172a' },
+  inputHint: { fontSize: 12, color: '#9ca3af', marginTop: -12, marginBottom: 16 },
   changePasswordButton: { backgroundColor: '#0ea5e9', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
   changePasswordButtonText: { color: 'white', fontSize: 16, fontWeight: '700' },

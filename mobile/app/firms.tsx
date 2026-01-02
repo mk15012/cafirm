@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert, RefreshControl, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert, RefreshControl, ActivityIndicator, Modal, Platform, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
@@ -22,11 +22,27 @@ interface Client {
   name: string;
 }
 
+interface Service {
+  id: number;
+  name: string;
+  category: string;
+  rate: number;
+  frequency: string;
+}
+
+interface TeamMember {
+  id: number;
+  name: string;
+  role: string;
+}
+
 export default function FirmsScreen() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const [firms, setFirms] = useState<Firm[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -34,6 +50,8 @@ export default function FirmsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
   const [showClientPicker, setShowClientPicker] = useState(false);
+  const [showServicePicker, setShowServicePicker] = useState(false);
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const isCA = user?.role === 'CA';
 
   const [formData, setFormData] = useState({
@@ -43,6 +61,11 @@ export default function FirmsScreen() {
     gstNumber: '',
     registrationNumber: '',
     address: '',
+    // Service & auto-creation fields
+    serviceId: '',
+    assignedToId: '',
+    createTask: true,
+    createInvoice: true,
   });
 
   // Filter firms based on search
@@ -57,6 +80,8 @@ export default function FirmsScreen() {
     if (isAuthenticated) {
       loadFirms();
       loadClients();
+      loadServices();
+      loadTeamMembers();
     }
   }, [isAuthenticated]);
 
@@ -65,7 +90,7 @@ export default function FirmsScreen() {
       const response = await api.get('/firms');
       setFirms(response.data);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load firms');
+      console.error('Failed to load firms:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -81,31 +106,83 @@ export default function FirmsScreen() {
     }
   };
 
+  const loadServices = async () => {
+    try {
+      const response = await api.get('/services');
+      const servicesWithRupees = response.data.map((s: Service) => ({
+        ...s,
+        rate: s.rate / 100,
+      }));
+      setServices(servicesWithRupees);
+    } catch (error) {
+      console.error('Failed to load services:', error);
+    }
+  };
+
+  const loadTeamMembers = async () => {
+    try {
+      const response = await api.get('/users');
+      setTeamMembers(response.data);
+    } catch (error) {
+      console.error('Failed to load team members:', error);
+    }
+  };
+
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
-      Alert.alert('Error', 'Firm name is required');
+      showAlert('Error', 'Firm name is required');
       return;
     }
     if (!formData.clientId) {
-      Alert.alert('Error', 'Please select a client');
+      showAlert('Error', 'Please select a client');
       return;
     }
     if (!formData.panNumber.trim()) {
-      Alert.alert('Error', 'PAN number is required');
+      showAlert('Error', 'PAN number is required');
       return;
     }
     try {
       if (editingFirm) {
-        await api.put(`/firms/${editingFirm.id}`, formData);
-        Alert.alert('Success', 'Firm updated successfully');
+        await api.put(`/firms/${editingFirm.id}`, {
+          clientId: formData.clientId,
+          name: formData.name,
+          panNumber: formData.panNumber,
+          gstNumber: formData.gstNumber,
+          registrationNumber: formData.registrationNumber,
+          address: formData.address,
+        });
+        showAlert('Success', 'Firm updated successfully');
       } else {
-        await api.post('/firms', formData);
-        Alert.alert('Success', 'Firm created successfully');
+        const response = await api.post('/firms', {
+          ...formData,
+          serviceId: formData.serviceId || undefined,
+          assignedToId: formData.assignedToId || undefined,
+        });
+        
+        // Show detailed success message
+        const { task, invoice } = response.data;
+        if (task && invoice) {
+          showAlert('Success', 'Firm created with task and invoice!');
+        } else if (task) {
+          showAlert('Success', 'Firm created with task!');
+        } else if (invoice) {
+          showAlert('Success', 'Firm created with invoice!');
+        } else {
+          showAlert('Success', 'Firm created successfully!');
+        }
       }
       closeForm();
       loadFirms();
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.error || 'Failed to save firm');
+      showAlert('Error', error.response?.data?.error || 'Failed to save firm');
     }
   };
 
@@ -118,39 +195,69 @@ export default function FirmsScreen() {
       gstNumber: firm.gstNumber || '',
       registrationNumber: firm.registrationNumber || '',
       address: firm.address || '',
+      serviceId: '',
+      assignedToId: '',
+      createTask: true,
+      createInvoice: true,
     });
     setSelectedClientId(firm.client.id.toString());
     setShowForm(true);
   };
 
   const handleDelete = (firm: Firm) => {
-    Alert.alert(
-      'Delete Firm',
-      `Are you sure you want to delete "${firm.name}"? This will also delete all associated tasks, documents, and invoices.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/firms/${firm.id}`);
-              Alert.alert('Success', 'Firm deleted successfully');
-              loadFirms();
-            } catch (error: any) {
-              Alert.alert('Error', error.response?.data?.error || 'Failed to delete firm');
-            }
-          },
-        },
-      ]
-    );
+    const confirmDelete = async () => {
+      try {
+        await api.delete(`/firms/${firm.id}`);
+        showAlert('Success', 'Firm deleted successfully');
+        loadFirms();
+      } catch (error: any) {
+        showAlert('Error', error.response?.data?.error || 'Failed to delete firm');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete "${firm.name}"? This will also delete all associated tasks, documents, and invoices.`)) {
+        confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        'Delete Firm',
+        `Are you sure you want to delete "${firm.name}"? This will also delete all associated tasks, documents, and invoices.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+        ]
+      );
+    }
   };
 
   const closeForm = () => {
     setShowForm(false);
     setEditingFirm(null);
-    setFormData({ clientId: '', name: '', panNumber: '', gstNumber: '', registrationNumber: '', address: '' });
+    setFormData({
+      clientId: '',
+      name: '',
+      panNumber: '',
+      gstNumber: '',
+      registrationNumber: '',
+      address: '',
+      serviceId: '',
+      assignedToId: '',
+      createTask: true,
+      createInvoice: true,
+    });
     setSelectedClientId('');
+  };
+
+  const getSelectedServiceName = () => {
+    const service = services.find(s => s.id.toString() === formData.serviceId);
+    return service ? `${service.name} - ₹${service.rate.toLocaleString('en-IN')}` : 'Select Service (Optional)';
+  };
+
+  const getSelectedAssigneeName = () => {
+    if (!formData.assignedToId) return 'Self (Default)';
+    const member = teamMembers.find(m => m.id.toString() === formData.assignedToId);
+    return member ? `${member.name} (${member.role})` : 'Self (Default)';
   };
 
   const getSelectedClientName = () => {
@@ -391,6 +498,73 @@ export default function FirmsScreen() {
                 multiline
                 numberOfLines={3}
               />
+
+              {/* Service Selection - Only for new firms */}
+              {!editingFirm && services.length > 0 && (
+                <View style={styles.serviceSection}>
+                  <View style={styles.serviceSectionHeader}>
+                    <Text style={styles.serviceSectionIcon}>⚡</Text>
+                    <Text style={styles.serviceSectionTitle}>Quick Setup (Optional)</Text>
+                  </View>
+                  <Text style={styles.serviceSectionDesc}>
+                    Select a service to auto-create task and invoice.
+                  </Text>
+
+                  <Text style={styles.inputLabel}>Service</Text>
+                  <TouchableOpacity
+                    style={styles.selectInput}
+                    onPress={() => setShowServicePicker(true)}
+                  >
+                    <Text style={formData.serviceId ? styles.selectValue : styles.selectPlaceholder}>
+                      {getSelectedServiceName()}
+                    </Text>
+                    <Text style={styles.selectArrow}>▼</Text>
+                  </TouchableOpacity>
+
+                  <Text style={styles.inputLabel}>Assign To</Text>
+                  <TouchableOpacity
+                    style={styles.selectInput}
+                    onPress={() => setShowAssigneePicker(true)}
+                  >
+                    <Text style={formData.assignedToId ? styles.selectValue : styles.selectPlaceholder}>
+                      {getSelectedAssigneeName()}
+                    </Text>
+                    <Text style={styles.selectArrow}>▼</Text>
+                  </TouchableOpacity>
+
+                  {formData.serviceId && (
+                    <View style={styles.autoCreateSection}>
+                      <Text style={styles.autoCreateTitle}>Auto-create:</Text>
+                      <View style={styles.switchRow}>
+                        <Text style={styles.switchLabel}>Create Task</Text>
+                        <Switch
+                          value={formData.createTask}
+                          onValueChange={(value) => setFormData({ ...formData, createTask: value })}
+                          trackColor={{ false: '#d1d5db', true: '#a78bfa' }}
+                          thumbColor={formData.createTask ? '#7c3aed' : '#f4f4f5'}
+                        />
+                      </View>
+                      <View style={styles.switchRow}>
+                        <Text style={styles.switchLabel}>Create Invoice</Text>
+                        <Switch
+                          value={formData.createInvoice}
+                          onValueChange={(value) => setFormData({ ...formData, createInvoice: value })}
+                          trackColor={{ false: '#d1d5db', true: '#a78bfa' }}
+                          thumbColor={formData.createInvoice ? '#7c3aed' : '#f4f4f5'}
+                        />
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {!editingFirm && services.length === 0 && (
+                <View style={styles.tipSection}>
+                  <Text style={styles.tipText}>
+                    💡 Configure services in Settings → Services & Pricing to enable quick task/invoice creation.
+                  </Text>
+                </View>
+              )}
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -448,6 +622,122 @@ export default function FirmsScreen() {
               {clients.length === 0 && (
                 <Text style={styles.pickerEmpty}>No clients available. Create a client first.</Text>
               )}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Service Picker Modal */}
+      <Modal visible={showServicePicker} animationType="fade" transparent>
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setShowServicePicker(false)}
+        >
+          <View style={styles.pickerContent}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Service</Text>
+              <TouchableOpacity onPress={() => setShowServicePicker(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.pickerList}>
+              <TouchableOpacity
+                style={[styles.pickerItem, !formData.serviceId && styles.pickerItemSelected]}
+                onPress={() => {
+                  setFormData({ ...formData, serviceId: '' });
+                  setShowServicePicker(false);
+                }}
+              >
+                <Text style={[styles.pickerItemText, !formData.serviceId && styles.pickerItemTextSelected]}>
+                  None (Skip)
+                </Text>
+                {!formData.serviceId && <Text style={styles.pickerCheck}>✓</Text>}
+              </TouchableOpacity>
+              {services.map((service) => (
+                <TouchableOpacity
+                  key={service.id}
+                  style={[
+                    styles.pickerItem,
+                    formData.serviceId === service.id.toString() && styles.pickerItemSelected
+                  ]}
+                  onPress={() => {
+                    setFormData({ ...formData, serviceId: service.id.toString() });
+                    setShowServicePicker(false);
+                  }}
+                >
+                  <View style={styles.servicePickerItem}>
+                    <Text style={[
+                      styles.pickerItemText,
+                      formData.serviceId === service.id.toString() && styles.pickerItemTextSelected
+                    ]}>
+                      {service.name}
+                    </Text>
+                    <Text style={styles.servicePickerRate}>₹{service.rate.toLocaleString('en-IN')}</Text>
+                  </View>
+                  {formData.serviceId === service.id.toString() && (
+                    <Text style={styles.pickerCheck}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Assignee Picker Modal */}
+      <Modal visible={showAssigneePicker} animationType="fade" transparent>
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAssigneePicker(false)}
+        >
+          <View style={styles.pickerContent}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Assign To</Text>
+              <TouchableOpacity onPress={() => setShowAssigneePicker(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.pickerList}>
+              <TouchableOpacity
+                style={[styles.pickerItem, !formData.assignedToId && styles.pickerItemSelected]}
+                onPress={() => {
+                  setFormData({ ...formData, assignedToId: '' });
+                  setShowAssigneePicker(false);
+                }}
+              >
+                <Text style={[styles.pickerItemText, !formData.assignedToId && styles.pickerItemTextSelected]}>
+                  Self (Default)
+                </Text>
+                {!formData.assignedToId && <Text style={styles.pickerCheck}>✓</Text>}
+              </TouchableOpacity>
+              {teamMembers.map((member) => (
+                <TouchableOpacity
+                  key={member.id}
+                  style={[
+                    styles.pickerItem,
+                    formData.assignedToId === member.id.toString() && styles.pickerItemSelected
+                  ]}
+                  onPress={() => {
+                    setFormData({ ...formData, assignedToId: member.id.toString() });
+                    setShowAssigneePicker(false);
+                  }}
+                >
+                  <View style={styles.servicePickerItem}>
+                    <Text style={[
+                      styles.pickerItemText,
+                      formData.assignedToId === member.id.toString() && styles.pickerItemTextSelected
+                    ]}>
+                      {member.name}
+                    </Text>
+                    <Text style={styles.memberRole}>{member.role}</Text>
+                  </View>
+                  {formData.assignedToId === member.id.toString() && (
+                    <Text style={styles.pickerCheck}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
             </ScrollView>
           </View>
         </TouchableOpacity>
@@ -553,4 +843,23 @@ const styles = StyleSheet.create({
   pickerItemTextSelected: { color: '#0ea5e9', fontWeight: '600' },
   pickerCheck: { color: '#0ea5e9', fontSize: 18 },
   pickerEmpty: { padding: 24, textAlign: 'center', color: '#94a3b8' },
+
+  // Service section styles
+  serviceSection: { marginTop: 16, padding: 16, backgroundColor: '#fefce8', borderRadius: 12, borderWidth: 1, borderColor: '#fde047' },
+  serviceSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  serviceSectionIcon: { fontSize: 20, marginRight: 8 },
+  serviceSectionTitle: { fontSize: 16, fontWeight: '700', color: '#854d0e' },
+  serviceSectionDesc: { fontSize: 14, color: '#a16207', marginBottom: 16 },
+
+  servicePickerItem: { flex: 1 },
+  servicePickerRate: { fontSize: 14, color: '#64748b', marginTop: 2 },
+  memberRole: { fontSize: 12, color: '#64748b', marginTop: 2 },
+
+  autoCreateSection: { marginTop: 16, padding: 12, backgroundColor: '#fffbeb', borderRadius: 8 },
+  autoCreateTitle: { fontSize: 14, fontWeight: '600', color: '#92400e', marginBottom: 12 },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
+  switchLabel: { fontSize: 14, color: '#374151' },
+
+  tipSection: { marginTop: 16, padding: 12, backgroundColor: '#f1f5f9', borderRadius: 8 },
+  tipText: { fontSize: 13, color: '#64748b', lineHeight: 18 },
 });

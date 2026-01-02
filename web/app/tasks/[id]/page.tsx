@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import AppLayout from '@/components/layout/AppLayout';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import { 
   CheckSquare, 
   ArrowLeft, 
@@ -71,6 +72,8 @@ export default function TaskDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -104,17 +107,61 @@ export default function TaskDetailPage() {
     }
   };
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChangeRequest = (newStatus: string) => {
+    if (newStatus === task?.status) return;
+    setPendingStatus(newStatus);
+    setShowStatusModal(true);
+  };
+
+  const handleStatusChangeConfirm = async () => {
+    if (!pendingStatus) return;
     try {
       setUpdatingStatus(true);
-      await api.put(`/tasks/${params.id}`, { status: newStatus });
-      toast.success('Task status updated!');
+      await api.put(`/tasks/${params.id}`, { status: pendingStatus });
+      setShowStatusModal(false);
+      toast.success(`Task status updated to ${getStatusLabel(pendingStatus)}!`);
       loadTask();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to update task status');
     } finally {
       setUpdatingStatus(false);
+      setPendingStatus(null);
     }
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      PENDING: 'Pending',
+      IN_PROGRESS: 'In Progress',
+      AWAITING_APPROVAL: 'Awaiting Approval',
+      COMPLETED: 'Completed',
+      ERROR: 'Error',
+      OVERDUE: 'Overdue',
+    };
+    return labels[status] || status;
+  };
+
+  const getStatusModalVariant = (status: string): 'danger' | 'success' | 'warning' | 'info' => {
+    const variants: Record<string, 'danger' | 'success' | 'warning' | 'info'> = {
+      PENDING: 'warning',
+      IN_PROGRESS: 'info',
+      AWAITING_APPROVAL: 'info',
+      COMPLETED: 'success',
+      ERROR: 'danger',
+      OVERDUE: 'danger',
+    };
+    return variants[status] || 'info';
+  };
+
+  const getStatusMessage = (status: string) => {
+    const messages: Record<string, string> = {
+      PENDING: 'This will mark the task as pending. The task will be waiting to be started.',
+      IN_PROGRESS: 'This will mark the task as in progress. Work has begun on this task.',
+      AWAITING_APPROVAL: 'This will submit the task for approval. A manager or CA will need to review it.',
+      COMPLETED: 'This will mark the task as completed. Great job! 🎉',
+      ERROR: 'This will mark the task as having an error. Please describe the issue in the task description.',
+    };
+    return messages[status] || 'Are you sure you want to change the task status?';
   };
 
   const getStatusColor = (status: string) => {
@@ -246,7 +293,7 @@ export default function TaskDetailPage() {
             <div className="flex gap-2">
               <select
                 value={task.status}
-                onChange={(e) => handleStatusChange(e.target.value)}
+                onChange={(e) => handleStatusChangeRequest(e.target.value)}
                 disabled={updatingStatus}
                 className={`px-4 py-2 text-sm font-semibold rounded-lg border ${getStatusColor(task.status)} focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer disabled:opacity-50`}
               >
@@ -257,6 +304,24 @@ export default function TaskDetailPage() {
                 <option value="ERROR">Error</option>
               </select>
             </div>
+          )}
+
+          {/* Status Change Confirmation Modal */}
+          {pendingStatus && (
+            <ConfirmModal
+              isOpen={showStatusModal}
+              onClose={() => {
+                setShowStatusModal(false);
+                setPendingStatus(null);
+              }}
+              onConfirm={handleStatusChangeConfirm}
+              title={`Change Status to "${getStatusLabel(pendingStatus)}"?`}
+              message={getStatusMessage(pendingStatus)}
+              confirmText={`Yes, ${pendingStatus === 'COMPLETED' ? 'Complete Task' : 'Update Status'}`}
+              cancelText="Cancel"
+              variant={getStatusModalVariant(pendingStatus)}
+              loading={updatingStatus}
+            />
           )}
         </div>
       </div>

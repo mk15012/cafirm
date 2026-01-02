@@ -15,6 +15,7 @@ import subscriptionRoutes from './subscription.routes';
 import complianceRoutes from './compliance.routes';
 import analyticsRoutes from './analytics.routes';
 import paymentRoutes from './payment.routes';
+import servicesRoutes from './services.routes';
 
 const router = Router();
 
@@ -34,6 +35,7 @@ router.use('/subscription', subscriptionRoutes);
 router.use('/compliance', complianceRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/payment', paymentRoutes);
+router.use('/services', servicesRoutes);
 
 export default router;
 

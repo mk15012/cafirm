@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 import { Building2, Shield, FileText, Calculator, Users, CheckCircle, Lock, Mail, User, Phone } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
@@ -41,6 +42,9 @@ export default function SignupPage() {
 
     try {
       await signup(name, email, password, phone || undefined);
+      toast.success('Account created successfully! Welcome aboard! 🎉', {
+        duration: 4000,
+      });
       router.push('/dashboard');
     } catch (err: any) {
       // Show detailed validation errors if available

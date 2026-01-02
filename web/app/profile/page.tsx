@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import AppLayout from '@/components/layout/AppLayout';
-import { User, Mail, Phone, Shield, Building2, Calendar, Edit, Lock, Eye, EyeOff, X } from 'lucide-react';
+import { User, Mail, Phone, Shield, Building2, Calendar, Edit, Lock, Eye, EyeOff, X, Cake } from 'lucide-react';
+import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
 interface UserProfile {
@@ -13,6 +14,7 @@ interface UserProfile {
   name: string;
   email: string;
   phone?: string;
+  birthday?: string;
   role: string;
   status: string;
   reportsTo?: { id: number; name: string };
@@ -45,6 +47,7 @@ export default function ProfilePage() {
   const [editData, setEditData] = useState({
     name: '',
     phone: '',
+    birthday: '',
   });
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -79,6 +82,7 @@ export default function ProfilePage() {
       setEditData({
         name: response.data.name || '',
         phone: response.data.phone || '',
+        birthday: response.data.birthday ? response.data.birthday.split('T')[0] : '',
       });
     } catch (error: any) {
       console.error('Failed to load profile:', error);
@@ -305,6 +309,19 @@ export default function ProfilePage() {
                   </div>
                 )}
 
+                {/* Birthday */}
+                {profile.birthday && (
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-pink-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Cake className="w-6 h-6 text-pink-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-500 mb-1">Birthday 🎂</p>
+                      <p className="text-base font-semibold text-gray-900">{format(new Date(profile.birthday), 'MMMM d')}</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Member Since */}
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -382,6 +399,22 @@ export default function ProfilePage() {
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       placeholder="Enter your phone number"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <span className="flex items-center gap-2">
+                        <Cake className="w-4 h-4" />
+                        Birthday
+                      </span>
+                    </label>
+                    <input
+                      type="date"
+                      value={editData.birthday}
+                      onChange={(e) => setEditData({ ...editData, birthday: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Add your birthday to receive greetings from the team! 🎂</p>
                   </div>
 
                   <div className="flex gap-3 pt-4">

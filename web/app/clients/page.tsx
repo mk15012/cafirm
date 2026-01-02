@@ -9,6 +9,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { Users, Plus, X, Mail, Phone, Building2, Edit, Trash2, Search, Eye, ChevronUp, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import UpgradeModal from '@/components/UpgradeModal';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Client {
   id: number;
@@ -33,6 +34,7 @@ export default function ClientsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deletingClient, setDeletingClient] = useState<Client | null>(null);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -216,11 +218,16 @@ export default function ClientsPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this client? This will also delete all associated firms.')) return;
+  const handleDeleteRequest = (client: Client) => {
+    setDeletingClient(client);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingClient) return;
     try {
-      await api.delete(`/clients/${id}`);
+      await api.delete(`/clients/${deletingClient.id}`);
       toast.success('Client deleted successfully!');
+      setDeletingClient(null);
       loadClients();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to delete client');
@@ -541,7 +548,7 @@ export default function ClientsPage() {
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => handleDelete(client.id)}
+                              onClick={() => handleDeleteRequest(client)}
                               className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title="Delete"
                             >
@@ -654,6 +661,18 @@ export default function ClientsPage() {
         currentUsage={subscriptionInfo?.currentUsage || 0}
         limit={subscriptionInfo?.limit === -1 ? 999 : (subscriptionInfo?.limit || 3)}
         currentPlan={subscriptionInfo?.plan || 'FREE'}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingClient}
+        onClose={() => setDeletingClient(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Client?"
+        message={`Are you sure you want to delete "${deletingClient?.name}"? This will permanently delete all associated firms, tasks, and documents.`}
+        confirmText="Yes, Delete Client"
+        cancelText="Cancel"
+        variant="danger"
       />
     </AppLayout>
   );

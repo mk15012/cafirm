@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -65,6 +65,24 @@ enum PlanType {
   ENTERPRISE
 }
 
+enum ServiceCategory {
+  ITR
+  GST
+  TDS
+  AUDIT
+  ROC
+  REGISTRATION
+  CONSULTATION
+  OTHER
+}
+
+enum ServiceFrequency {
+  ONE_TIME
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -80,6 +98,7 @@ model User {
   email         String      @unique
   password      String
   phone         String?
+  birthday      DateTime?   // Stores birthday for greeting purposes
   role          UserRole    @default(STAFF)
   reportsToId   Int?
   reportsTo     User?       @relation("ReportingHierarchy", fields: [reportsToId], references: [id])
@@ -104,6 +123,8 @@ model User {
   firmAssignmentsCreated UserFirmMapping[] @relation("FirmAssignment")
   createdCredentials ClientCredential[] @relation("CredentialCreator")
   subscription       Subscription?      @relation("UserSubscription")
+  createdServices    Service[]         @relation("ServiceCreator")
+  assignedFirmServices FirmService[]   @relation("FirmServiceAssignee")
 
   @@index([email])
   @@index([role])
@@ -171,6 +192,7 @@ model Firm {
   meetings  Meeting[]
   userAssignments UserFirmMapping[]
   credentials ClientCredential[]
+  firmServices FirmService[]
 
   @@index([clientId])
   @@index([panNumber])
@@ -424,5 +446,45 @@ model Plan {
 
   @@index([code])
   @@index([isActive])
+}
+
+// Service templates for each CA/Firm
+model Service {
+  id           Int              @id @default(autoincrement())
+  name         String           // "ITR - Salaried Individual"
+  description  String?
+  category     ServiceCategory  @default(OTHER)
+  frequency    ServiceFrequency @default(ONE_TIME)
+  rate         Int              // Amount in paise (150000 = ₹1,500)
+  isActive     Boolean          @default(true)
+  createdById  Int              // The CA who created this service template
+  createdBy    User             @relation("ServiceCreator", fields: [createdById], references: [id])
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  // Relations
+  firmServices FirmService[]
+
+  @@index([createdById])
+  @@index([category])
+}
+
+// Services enabled for a specific firm with optional overrides
+model FirmService {
+  id           Int              @id @default(autoincrement())
+  firmId       Int
+  firm         Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  serviceId    Int
+  service      Service          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  assignedToId Int?             // Default assignee for this service
+  assignedTo   User?            @relation("FirmServiceAssignee", fields: [assignedToId], references: [id])
+  customRate   Int?             // Override rate for this firm (null = use service default)
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([firmId, serviceId])
+  @@index([firmId])
+  @@index([serviceId])
 }
 

@@ -26,7 +26,7 @@ export async function getRecentTasks(req: Request, res: Response) {
     }
 
     // Get accessible firm IDs
-    let accessibleFirmIds: string[] = [];
+    let accessibleFirmIds: number[] = [];
     
     if (user.role === 'CA') {
       const allFirms = await prisma.firm.findMany({ select: { id: true } });
@@ -83,7 +83,7 @@ export async function getUpcomingDeadlines(req: Request, res: Response) {
     }
 
     // Get accessible firm IDs (same logic as recent tasks)
-    let accessibleFirmIds: string[] = [];
+    let accessibleFirmIds: number[] = [];
     
     if (user.role === 'CA') {
       const allFirms = await prisma.firm.findMany({ select: { id: true } });
@@ -147,11 +147,83 @@ export async function getUpcomingDeadlines(req: Request, res: Response) {
   }
 }
 
-async function getTeamUserIds(managerId: string): Promise<string[]> {
+async function getTeamUserIds(managerId: number): Promise<number[]> {
   const teamMembers = await prisma.user.findMany({
     where: { reportsToId: managerId },
     select: { id: true },
   });
   return [managerId, ...teamMembers.map(u => u.id)];
+}
+
+export async function getTodaysBirthdays(req: Request, res: Response) {
+  try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1; // 1-indexed
+    const currentDay = today.getDate();
+
+    // Get all active users with birthdays and their reporting structure
+    // Note: Using 'as any' because TypeScript may not have picked up the new birthday field yet
+    const allUsers = await prisma.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        birthday: { not: null },
+      } as any,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        birthday: true,
+        reportsToId: true,
+      } as any,
+    });
+
+    // Filter users whose birthday matches today (month and day)
+    const birthdayUsers = (allUsers as any[]).filter((u: any) => {
+      if (!u.birthday) return false;
+      const bday = new Date(u.birthday);
+      return bday.getMonth() + 1 === currentMonth && bday.getDate() === currentDay;
+    });
+
+    // Check if the logged-in user has birthday today
+    const loggedInUserBirthday = birthdayUsers.find(u => u.id === user.userId);
+    
+    // Determine which team birthdays to show based on role
+    let teamBirthdays: typeof birthdayUsers = [];
+    
+    if (user.role === 'CA') {
+      // CA sees all team members' birthdays (everyone except themselves)
+      teamBirthdays = birthdayUsers;
+    } else if (user.role === 'MANAGER') {
+      // Manager sees:
+      // 1. Their own birthday (handled separately as isMyBirthday)
+      // 2. Birthdays of staff who report directly to them
+      teamBirthdays = birthdayUsers.filter(u => 
+        u.id === user.userId || u.reportsToId === user.userId
+      );
+    } else {
+      // Staff sees only their own birthday
+      teamBirthdays = birthdayUsers.filter(u => u.id === user.userId);
+    }
+
+    res.json({
+      isMyBirthday: !!loggedInUserBirthday,
+      myName: loggedInUserBirthday?.name,
+      teamBirthdays: teamBirthdays.map(u => ({
+        id: u.id,
+        name: u.name,
+        role: u.role,
+        isMe: u.id === user.userId,
+      })),
+    });
+  } catch (error) {
+    console.error('Get todays birthdays error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 }
 

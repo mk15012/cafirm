@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import AppLayout from '@/components/layout/AppLayout';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import { 
   ArrowLeft, 
   Building2, 
@@ -57,6 +58,7 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
 
   useEffect(() => {
     initializeAuth();
@@ -87,10 +89,10 @@ export default function InvoiceDetailPage() {
   };
 
   const handleMarkPaid = async () => {
-    if (!confirm('Mark this invoice as paid?')) return;
     try {
       setMarkingPaid(true);
       await api.put(`/invoices/${params.id}/pay`, {});
+      setShowMarkPaidModal(false);
       loadInvoice();
       toast.success('Invoice marked as paid!');
     } catch (error: any) {
@@ -224,34 +226,34 @@ ${invoice.createdBy.email}`;
 
   return (
     <AppLayout title={`Invoice: ${invoice.invoiceNumber}`}>
-      <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+      <div className="max-w-4xl mx-auto">
         {/* Back Button */}
         <button
           onClick={() => router.back()}
-          className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium mb-6"
+          className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium mb-4"
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Invoices
         </button>
 
         {/* Invoice Header Card */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Invoice #{invoice.invoiceNumber}</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-2xl font-bold text-gray-900">Invoice #{invoice.invoiceNumber}</h1>
+              <p className="text-sm text-gray-500 mt-1">
                 Created on {format(new Date(invoice.createdAt), 'MMM dd, yyyy')}
               </p>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               {getStatusIcon(invoice.status)}
-              <span className={`px-4 py-2 text-sm font-semibold rounded-full border ${getStatusColor(invoice.status)}`}>
+              <span className={`px-3 py-1.5 text-sm font-semibold rounded-full border ${getStatusColor(invoice.status)}`}>
                 {invoice.status}
               </span>
               <button
                 onClick={handleSendInvoice}
                 disabled={!invoice.firm.client.email}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+                className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-sm disabled:opacity-50"
                 title={!invoice.firm.client.email ? 'Client email not available' : 'Send invoice via email'}
               >
                 <Mail className="w-4 h-4" />
@@ -259,55 +261,51 @@ ${invoice.createdBy.email}`;
               </button>
               {invoice.status !== 'PAID' && (
                 <button
-                  onClick={handleMarkPaid}
-                  disabled={markingPaid}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+                  onClick={() => setShowMarkPaidModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  {markingPaid ? 'Marking...' : 'Mark as Paid'}
+                  Mark as Paid
                 </button>
               )}
             </div>
           </div>
 
           {overdue && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-              <div>
-                <p className="font-semibold text-red-900">Invoice is Overdue</p>
-                <p className="text-sm text-red-700">
-                  Due date was {format(new Date(invoice.dueDate), 'MMM dd, yyyy')}
-                </p>
-              </div>
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+              <p className="text-sm text-red-800">
+                <span className="font-semibold">Overdue</span> - Due date was {format(new Date(invoice.dueDate), 'MMM dd, yyyy')}
+              </p>
             </div>
           )}
         </div>
 
         {/* Invoice Details */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           {/* Client & Firm Information */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Bill To</h2>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <Building2 className="w-5 h-5 text-gray-400 mt-1" />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <h2 className="text-base font-bold text-gray-900 mb-3">Bill To</h2>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-gray-400" />
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Firm</p>
+                  <p className="text-xs text-gray-500">Firm</p>
                   <Link
                     href={`/firms/${invoice.firm.id}`}
-                    className="text-primary-600 hover:text-primary-700 hover:underline font-semibold"
+                    className="text-primary-600 hover:text-primary-700 hover:underline font-medium text-sm"
                   >
                     {invoice.firm.name}
                   </Link>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <Users className="w-5 h-5 text-gray-400 mt-1" />
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-gray-400" />
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Client</p>
+                  <p className="text-xs text-gray-500">Client</p>
                   <Link
                     href={`/clients/${invoice.firm.client.id}`}
-                    className="text-primary-600 hover:text-primary-700 hover:underline font-semibold"
+                    className="text-primary-600 hover:text-primary-700 hover:underline font-medium text-sm"
                   >
                     {invoice.firm.client.name}
                   </Link>
@@ -317,44 +315,43 @@ ${invoice.createdBy.email}`;
           </div>
 
           {/* Invoice Information */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Invoice Details</h2>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <Calendar className="w-5 h-5 text-gray-400 mt-1" />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <h2 className="text-base font-bold text-gray-900 mb-3">Invoice Details</h2>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Due Date</p>
-                  <p className={`font-semibold ${overdue ? 'text-red-600' : 'text-gray-900'}`}>
+                  <p className="text-xs text-gray-500">Due Date</p>
+                  <p className={`font-medium text-sm ${overdue ? 'text-red-600' : 'text-gray-900'}`}>
                     {format(new Date(invoice.dueDate), 'MMM dd, yyyy')}
-                    {overdue && <span className="ml-2 text-xs">(Overdue)</span>}
                   </p>
                 </div>
               </div>
               {invoice.paidDate && (
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-1" />
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Paid Date</p>
-                    <p className="font-semibold text-gray-900">
+                    <p className="text-xs text-gray-500">Paid Date</p>
+                    <p className="font-medium text-sm text-gray-900">
                       {format(new Date(invoice.paidDate), 'MMM dd, yyyy')}
                     </p>
                   </div>
                 </div>
               )}
               {invoice.paymentReference && (
-                <div className="flex items-start gap-3">
-                  <CreditCard className="w-5 h-5 text-gray-400 mt-1" />
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Payment Reference</p>
-                    <p className="font-semibold text-gray-900">{invoice.paymentReference}</p>
+                    <p className="text-xs text-gray-500">Payment Reference</p>
+                    <p className="font-medium text-sm text-gray-900">{invoice.paymentReference}</p>
                   </div>
                 </div>
               )}
-              <div className="flex items-start gap-3">
-                <FileText className="w-5 h-5 text-gray-400 mt-1" />
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-gray-400" />
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Created By</p>
-                  <p className="font-semibold text-gray-900">{invoice.createdBy.name}</p>
+                  <p className="text-xs text-gray-500">Created By</p>
+                  <p className="font-medium text-sm text-gray-900">{invoice.createdBy.name}</p>
                 </div>
               </div>
             </div>
@@ -362,22 +359,22 @@ ${invoice.createdBy.email}`;
         </div>
 
         {/* Amount Breakdown */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Amount Breakdown</h2>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center py-3 border-b border-gray-200">
-              <span className="text-gray-700">Service Amount</span>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-4">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Amount Breakdown</h2>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-gray-600">Service Amount</span>
               <span className="font-semibold text-gray-900">₹{invoice.amount.toLocaleString('en-IN')}</span>
             </div>
             {invoice.taxAmount > 0 && (
-              <div className="flex justify-between items-center py-3 border-b border-gray-200">
-                <span className="text-gray-700">Tax (GST)</span>
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-gray-600">Tax (GST)</span>
                 <span className="font-semibold text-gray-900">₹{invoice.taxAmount.toLocaleString('en-IN')}</span>
               </div>
             )}
-            <div className="flex justify-between items-center py-4 bg-primary-50 rounded-lg px-4">
-              <span className="text-lg font-bold text-gray-900">Total Amount</span>
-              <span className="text-2xl font-bold text-primary-600">
+            <div className="flex justify-between items-center py-3 bg-primary-50 rounded-lg px-3 mt-2">
+              <span className="font-bold text-gray-900">Total Amount</span>
+              <span className="text-xl font-bold text-primary-600">
                 ₹{invoice.totalAmount.toLocaleString('en-IN')}
               </span>
             </div>
@@ -386,9 +383,9 @@ ${invoice.createdBy.email}`;
 
         {/* Payment Status */}
         {invoice.status === 'PAID' && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <CheckCircle className="w-6 h-6 text-green-600" />
+              <CheckCircle className="w-5 h-5 text-green-600" />
               <div>
                 <p className="font-semibold text-green-900">Payment Received</p>
                 <p className="text-sm text-green-700">
@@ -400,9 +397,9 @@ ${invoice.createdBy.email}`;
         )}
 
         {invoice.status === 'UNPAID' && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <AlertCircle className="w-6 h-6 text-yellow-600" />
+              <AlertCircle className="w-5 h-5 text-yellow-600" />
               <div>
                 <p className="font-semibold text-yellow-900">Payment Pending</p>
                 <p className="text-sm text-yellow-700">
@@ -414,9 +411,9 @@ ${invoice.createdBy.email}`;
         )}
 
         {invoice.status === 'OVERDUE' && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <AlertCircle className="w-6 h-6 text-red-600" />
+              <AlertCircle className="w-5 h-5 text-red-600" />
               <div>
                 <p className="font-semibold text-red-900">Payment Overdue</p>
                 <p className="text-sm text-red-700">
@@ -426,6 +423,19 @@ ${invoice.createdBy.email}`;
             </div>
           </div>
         )}
+
+        {/* Mark as Paid Confirmation Modal */}
+        <ConfirmModal
+          isOpen={showMarkPaidModal}
+          onClose={() => setShowMarkPaidModal(false)}
+          onConfirm={handleMarkPaid}
+          title="Mark Invoice as Paid"
+          message={`Are you sure you want to mark invoice #${invoice.invoiceNumber} as paid? This will update the payment status.`}
+          confirmText="Yes, Mark as Paid"
+          cancelText="Cancel"
+          variant="success"
+          loading={markingPaid}
+        />
       </div>
     </AppLayout>
   );

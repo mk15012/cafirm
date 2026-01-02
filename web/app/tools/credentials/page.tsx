@@ -23,6 +23,7 @@ import {
   Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 interface Credential {
   id: number;
@@ -70,6 +71,7 @@ export default function CredentialsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingCredential, setEditingCredential] = useState<Credential | null>(null);
+  const [deletingCredential, setDeletingCredential] = useState<Credential | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientFilter, setSelectedClientFilter] = useState('');
   const [selectedPortalFilter, setSelectedPortalFilter] = useState('All');
@@ -225,11 +227,16 @@ export default function CredentialsPage() {
     }
   };
 
-  const handleDelete = async (id: number, portalName: string) => {
-    if (!confirm(`Delete credentials for "${portalName}"? This action cannot be undone.`)) return;
+  const handleDeleteRequest = (credential: Credential) => {
+    setDeletingCredential(credential);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingCredential) return;
     try {
-      await api.delete(`/credentials/${id}`);
+      await api.delete(`/credentials/${deletingCredential.id}`);
       toast.success('Credential deleted!');
+      setDeletingCredential(null);
       loadCredentials();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to delete credential');
@@ -636,7 +643,7 @@ export default function CredentialsPage() {
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDelete(cred.id, cred.portalName)}
+                                onClick={() => handleDeleteRequest(cred)}
                                 className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                 title="Delete"
                               >
@@ -653,6 +660,18 @@ export default function CredentialsPage() {
             ))}
           </div>
         )}
+
+      {/* Delete Credential Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deletingCredential}
+        onClose={() => setDeletingCredential(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Credential?"
+        message={`Are you sure you want to delete credentials for "${deletingCredential?.portalName}"? This action cannot be undone.`}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </AppLayout>
   );
 }
