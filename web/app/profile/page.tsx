@@ -251,7 +251,11 @@ export default function ProfilePage() {
               </button>
               <button
                 onClick={() => {
-                  setEditData({ name: profile?.name || '', phone: profile?.phone || '' });
+                  setEditData({ 
+                    name: profile?.name || '', 
+                    phone: profile?.phone || '',
+                    birthday: profile?.birthday ? profile.birthday.split('T')[0] : '',
+                  });
                   setActiveTab('edit');
                 }}
                 className={`px-6 py-4 font-medium text-sm transition-colors relative ${
