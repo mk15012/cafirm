@@ -14,11 +14,11 @@ async function main() {
       description: 'Perfect for individual CAs just getting started',
       monthlyPricePaise: 0,
       yearlyPricePaise: 0,
-      maxClients: 3,
-      maxFirmsPerClient: 2,
-      maxUsers: 1,
-      maxStorageMB: 100,
-      maxCredentials: 5,
+      maxClients: 50,
+      maxFirmsPerClient: 50, // 1:1 mapping supported
+      maxUsers: 2,
+      maxStorageMB: 1024, // 1GB
+      maxCredentials: 100,
       features: JSON.stringify({
         taxCalculator: true,
         approvalWorkflow: false,
@@ -40,11 +40,11 @@ async function main() {
       description: 'For small CA practices with growing client base',
       monthlyPricePaise: 49900, // ₹499
       yearlyPricePaise: 499900, // ₹4,999 (2 months free)
-      maxClients: 25,
-      maxFirmsPerClient: 5,
-      maxUsers: 3,
-      maxStorageMB: 1024, // 1GB
-      maxCredentials: 50,
+      maxClients: 150,
+      maxFirmsPerClient: 150, // 1:1 mapping - each client can have 1 firm
+      maxUsers: 10,
+      maxStorageMB: 10240, // 10GB
+      maxCredentials: 300,
       features: JSON.stringify({
         taxCalculator: true,
         approvalWorkflow: true,
@@ -66,11 +66,11 @@ async function main() {
       description: 'For established CA firms with multiple team members',
       monthlyPricePaise: 99900, // ₹999
       yearlyPricePaise: 999900, // ₹9,999 (2 months free)
-      maxClients: 100,
-      maxFirmsPerClient: 10,
-      maxUsers: 10,
-      maxStorageMB: 5120, // 5GB
-      maxCredentials: 200,
+      maxClients: 300,
+      maxFirmsPerClient: 300, // 1:1 mapping supported
+      maxUsers: 30,
+      maxStorageMB: 30720, // 30GB
+      maxCredentials: 600,
       features: JSON.stringify({
         taxCalculator: true,
         approvalWorkflow: true,
@@ -93,10 +93,10 @@ async function main() {
       monthlyPricePaise: 249900, // ₹2,499
       yearlyPricePaise: 2499900, // ₹24,999 (2 months free)
       maxClients: -1, // Unlimited
-      maxFirmsPerClient: -1,
-      maxUsers: -1,
-      maxStorageMB: -1,
-      maxCredentials: -1,
+      maxFirmsPerClient: -1, // Unlimited
+      maxUsers: -1, // Unlimited
+      maxStorageMB: 102400, // 100GB (effectively unlimited)
+      maxCredentials: -1, // Unlimited
       features: JSON.stringify({
         taxCalculator: true,
         approvalWorkflow: true,
