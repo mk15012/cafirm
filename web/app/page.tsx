@@ -20,7 +20,11 @@ import {
   CalendarCheck,
   UserCheck,
   Smartphone,
-  Download
+  Download,
+  User,
+  Wallet,
+  Key,
+  Heart
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -468,6 +472,159 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* For Individuals Section */}
+      <section className="py-20 lg:py-28 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-10 right-10 w-72 h-72 bg-emerald-300 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-10 left-10 w-64 h-64 bg-teal-300 rounded-full blur-3xl"></div>
+        </div>
+        
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left Content */}
+            <div>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-100 rounded-full text-emerald-700 font-medium text-sm mb-6">
+                <User className="w-4 h-4" />
+                Also For Individuals
+              </div>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-6 leading-tight">
+                Manage Your Own Taxes?
+                <span className="block text-emerald-600">This App is For You Too!</span>
+              </h2>
+              <p className="text-lg text-slate-600 mb-8 leading-relaxed">
+                Not a CA? No problem! If you file your own ITR, manage multiple PANs for family members, 
+                or just want a secure place to store government portal credentials — CA Firm Pro works 
+                perfectly for you too. <strong className="text-emerald-700">And it&apos;s completely FREE!</strong>
+              </p>
+              
+              <div className="space-y-4 mb-8">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                    <Key className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-900">Secure Password Storage</h4>
+                    <p className="text-slate-600 text-sm">Store Income Tax, GST, PF, TAN and other portal credentials safely with AES-256 encryption</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center">
+                    <Users className="w-5 h-5 text-teal-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-900">Manage Family Members</h4>
+                    <p className="text-slate-600 text-sm">Track ITR filings for parents, spouse, and kids — all in one place</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center">
+                    <Calculator className="w-5 h-5 text-cyan-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-900">Tax Regime Calculator</h4>
+                    <p className="text-slate-600 text-sm">Compare old vs new tax regime instantly to maximize your savings</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-900">Document Storage</h4>
+                    <p className="text-slate-600 text-sm">Keep all your Form 16, ITR acknowledgments, and tax documents organized</p>
+                  </div>
+                </div>
+              </div>
+              
+              <Link
+                href="/auth/signup"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg shadow-emerald-500/25"
+              >
+                Get Started Free
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+              <p className="mt-3 text-sm text-slate-500">
+                <Heart className="w-4 h-4 inline mr-1 text-red-400" />
+                Free forever for personal use
+              </p>
+            </div>
+            
+            {/* Right Visual */}
+            <div className="relative">
+              <div className="bg-white rounded-3xl shadow-2xl p-8 border border-slate-100">
+                <div className="text-center mb-6">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl mb-4">
+                    <User className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900">Personal Dashboard</h3>
+                  <p className="text-slate-500 text-sm">Everything you need, simplified</p>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Wallet className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-slate-900">My Tax Filings</div>
+                      <div className="text-xs text-slate-500">Track ITR status for all family members</div>
+                    </div>
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Key className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-slate-900">Saved Credentials</div>
+                      <div className="text-xs text-slate-500">12 portal passwords stored securely</div>
+                    </div>
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                    <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-slate-900">Documents</div>
+                      <div className="text-xs text-slate-500">Form 16, ITR Acks, PAN cards</div>
+                    </div>
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border-2 border-emerald-200">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                      <Calculator className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-emerald-900">Tax Calculator</div>
+                      <div className="text-xs text-emerald-600">Save ₹24,000 with new regime!</div>
+                    </div>
+                    <Zap className="w-5 h-5 text-amber-500" />
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-4 border-t border-slate-100 text-center">
+                  <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+                    <Star className="w-4 h-4 text-amber-400" />
+                    100% Free for Personal Use
+                  </span>
+                </div>
+              </div>
+              
+              {/* Decorative elements */}
+              <div className="absolute -top-4 -right-4 w-24 h-24 bg-gradient-to-br from-amber-400 to-orange-400 rounded-2xl opacity-20 blur-xl"></div>
+              <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-gradient-to-br from-emerald-400 to-teal-400 rounded-full opacity-20 blur-xl"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-20 lg:py-32 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
         <div className="absolute inset-0 opacity-20">
@@ -477,10 +634,10 @@ export default function HomePage() {
         
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
-            Ready to Transform Your Practice?
+            Ready to Get Started?
           </h2>
           <p className="text-lg text-slate-300 mb-10 max-w-2xl mx-auto">
-            Join hundreds of CA firms already using CA Firm Pro to streamline their operations.
+            Whether you&apos;re a CA firm or an individual managing personal taxes — we&apos;ve got you covered.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

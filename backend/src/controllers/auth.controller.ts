@@ -48,7 +48,7 @@ export async function login(req: Request, res: Response) {
 
 export async function signup(req: Request, res: Response) {
   try {
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, role } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
@@ -70,14 +70,17 @@ export async function signup(req: Request, res: Response) {
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create new CA user (signup is only for CAs)
+    // Determine the user role (CA or INDIVIDUAL for self-signup)
+    const userRole = role === 'INDIVIDUAL' ? 'INDIVIDUAL' : 'CA';
+
+    // Create new user
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         phone,
-        role: 'CA',
+        role: userRole,
         status: 'ACTIVE',
       },
     });
