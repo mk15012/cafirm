@@ -188,7 +188,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
-      alert('Password changed successfully!');
+      toast.success('Password changed successfully! 🔐');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setActiveTab('profile');
     } catch (error: any) {
@@ -220,7 +220,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
       setSavingProfile(true);
       const response = await api.put('/auth/profile', editData);
       setProfile(response.data);
-      alert('Profile updated successfully!');
+      toast.success('Profile updated successfully! ✨');
       setActiveTab('profile');
     } catch (error: any) {
       setEditError(error.response?.data?.error || 'Failed to update profile');
