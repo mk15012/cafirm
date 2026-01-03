@@ -137,16 +137,17 @@ export default function ProfilePage() {
   };
 
   // Format date as DD-MM-YYYY for display/input
+  // Parse directly from YYYY-MM-DD to avoid timezone issues
   const formatDateDDMMYYYY = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      return `${day}-${month}-${year}`;
-    } catch {
-      return '';
+    if (!dateString) return '';
+    // If already in DD-MM-YYYY format, return as is
+    if (/^\d{2}-\d{2}-\d{4}$/.test(dateString)) return dateString;
+    // Parse YYYY-MM-DD format
+    const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
     }
+    return dateString;
   };
 
   // Convert DD-MM-YYYY to YYYY-MM-DD for API
