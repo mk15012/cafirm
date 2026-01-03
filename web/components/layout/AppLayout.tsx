@@ -171,6 +171,32 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
     });
   };
 
+  // Format date as DD-MM-YYYY for display/input
+  const formatDateDDMMYYYY = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    } catch {
+      return '';
+    }
+  };
+
+  // Convert DD-MM-YYYY to YYYY-MM-DD for API
+  const convertToISODate = (ddmmyyyy: string): string => {
+    if (!ddmmyyyy) return '';
+    // Check if already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ddmmyyyy)) return ddmmyyyy;
+    // Convert DD-MM-YYYY to YYYY-MM-DD
+    const parts = ddmmyyyy.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return ddmmyyyy;
+  };
+
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError(null);
@@ -221,7 +247,12 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
 
     try {
       setSavingProfile(true);
-      const response = await api.put('/auth/profile', editData);
+      // Convert birthday from DD-MM-YYYY to YYYY-MM-DD for API
+      const profileData = {
+        ...editData,
+        birthday: convertToISODate(editData.birthday),
+      };
+      const response = await api.put('/auth/profile', profileData);
       setProfile(response.data);
       toast.success('Profile updated successfully! ✨');
       setActiveTab('profile');
@@ -700,10 +731,11 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                     </button>
                     <button
                       onClick={() => {
+                        const birthdayISO = profile?.birthday ? profile.birthday.split('T')[0] : '';
                         setEditData({ 
                           name: profile?.name || '', 
                           phone: profile?.phone || '',
-                          birthday: profile?.birthday ? profile.birthday.split('T')[0] : '',
+                          birthday: birthdayISO ? formatDateDDMMYYYY(birthdayISO) : '',
                         });
                         setEditError(null);
                         setActiveTab('edit');
@@ -866,13 +898,13 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                             🎂 Birthday
                           </label>
                           <input
-                            type="date"
+                            type="text"
+                            placeholder="DD-MM-YYYY (e.g., 15-01-1990)"
                             value={editData.birthday}
                             onChange={(e) => setEditData({ ...editData, birthday: e.target.value })}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                            style={{ colorScheme: 'light' }}
                           />
-                          <p className="text-xs text-gray-500 mt-1">Add your birthday to receive greetings from the team! 🎉</p>
+                          <p className="text-xs text-gray-500 mt-1">Add your birthday to receive greetings from the team! Format: DD-MM-YYYY 🎉</p>
                         </div>
 
                         <div className="flex gap-3 pt-4">

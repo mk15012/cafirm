@@ -292,3 +292,4 @@ const styles = StyleSheet.create({
   assignedTo: { fontSize: 12, color: '#64748b' },
 });
 
+

@@ -79,11 +79,12 @@ export default function ProfileScreen() {
       const response = await api.get('/auth/me');
       console.log('Profile response:', response.data);
       setProfile(response.data);
-      // Initialize edit data
+      // Initialize edit data with DD-MM-YYYY format for birthday
+      const birthdayISO = response.data.birthday ? response.data.birthday.split('T')[0] : '';
       setEditData({
         name: response.data.name || '',
         phone: response.data.phone || '',
-        birthday: response.data.birthday ? response.data.birthday.split('T')[0] : '',
+        birthday: birthdayISO ? formatDateDDMMYYYY(birthdayISO) : '',
       });
     } catch (err: any) {
       console.error('Profile load error:', err);
@@ -119,7 +120,12 @@ export default function ProfileScreen() {
 
     try {
       setSavingProfile(true);
-      const response = await api.put('/auth/profile', editData);
+      // Convert birthday from DD-MM-YYYY to YYYY-MM-DD for API
+      const profileData = {
+        ...editData,
+        birthday: convertToISODate(editData.birthday),
+      };
+      const response = await api.put('/auth/profile', profileData);
       setProfile(response.data);
       Alert.alert('Success', 'Profile updated successfully!');
       setActiveTab('profile');
@@ -206,6 +212,32 @@ export default function ProfileScreen() {
     } catch {
       return 'N/A';
     }
+  };
+
+  // Format date as DD-MM-YYYY for display/input
+  const formatDateDDMMYYYY = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    } catch {
+      return '';
+    }
+  };
+
+  // Convert DD-MM-YYYY to YYYY-MM-DD for API
+  const convertToISODate = (ddmmyyyy: string): string => {
+    if (!ddmmyyyy) return '';
+    // Check if already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ddmmyyyy)) return ddmmyyyy;
+    // Convert DD-MM-YYYY to YYYY-MM-DD
+    const parts = ddmmyyyy.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return ddmmyyyy;
   };
 
   const getRoleColor = (role: string) => {
@@ -325,10 +357,11 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={[styles.tab, activeTab === 'edit' && styles.tabActive]}
                 onPress={() => {
+                  const birthdayISO = displayProfile?.birthday ? displayProfile.birthday.split('T')[0] : '';
                   setEditData({ 
                     name: displayProfile?.name || '', 
                     phone: displayProfile?.phone || '',
-                    birthday: displayProfile?.birthday ? displayProfile.birthday.split('T')[0] : '',
+                    birthday: birthdayISO ? formatDateDDMMYYYY(birthdayISO) : '',
                   });
                   setActiveTab('edit');
                 }}
@@ -407,12 +440,12 @@ export default function ProfileScreen() {
                 <Text style={styles.inputLabel}>🎂 Birthday</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="YYYY-MM-DD (e.g., 1990-01-15)"
+                  placeholder="DD-MM-YYYY (e.g., 15-01-1990)"
                   placeholderTextColor="#9ca3af"
                   value={editData.birthday}
                   onChangeText={(text) => setEditData({ ...editData, birthday: text })}
                 />
-                <Text style={styles.inputHint}>Add your birthday to receive greetings!</Text>
+                <Text style={styles.inputHint}>Add your birthday to receive greetings! Format: DD-MM-YYYY</Text>
                 
                 <TouchableOpacity
                   style={[styles.changePasswordButton, savingProfile && styles.buttonDisabled]}

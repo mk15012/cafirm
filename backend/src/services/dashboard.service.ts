@@ -54,18 +54,24 @@ export async function getDashboardMetrics(userId: number, userRole: UserRole): P
   const orgFirmIds = new Set(orgFirms.map(f => f.id));
   accessibleFirmIds = accessibleFirmIds.filter(id => orgFirmIds.has(id));
 
-  // Active Tasks
+  // Active Tasks / Reminders
+  // For INDIVIDUAL users, count all non-completed tasks as "reminders"
+  // For other roles, count only IN_PROGRESS tasks
   const activeTasks = await prisma.task.count({
     where: {
       firmId: { in: accessibleFirmIds },
-      status: 'IN_PROGRESS',
+      status: userRole === 'INDIVIDUAL' 
+        ? { notIn: ['COMPLETED', 'ERROR'] }
+        : 'IN_PROGRESS',
     },
   });
 
   const activeTasksLastMonth = await prisma.task.count({
     where: {
       firmId: { in: accessibleFirmIds },
-      status: 'IN_PROGRESS',
+      status: userRole === 'INDIVIDUAL' 
+        ? { notIn: ['COMPLETED', 'ERROR'] }
+        : 'IN_PROGRESS',
       createdAt: { lte: endOfLastMonth },
     },
   });
