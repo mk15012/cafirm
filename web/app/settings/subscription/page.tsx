@@ -392,15 +392,15 @@ export default function SubscriptionSettingsPage() {
                 <ul className="space-y-1.5">
                   <li className="flex justify-between">
                     <span className="text-gray-600">Clients</span>
-                    <span className="font-medium">{plan.limits.clients}</span>
+                    <span className="font-medium text-gray-900">{plan.limits.clients}</span>
                   </li>
                   <li className="flex justify-between">
                     <span className="text-gray-600">Users</span>
-                    <span className="font-medium">{plan.limits.users}</span>
+                    <span className="font-medium text-gray-900">{plan.limits.users}</span>
                   </li>
                   <li className="flex justify-between">
                     <span className="text-gray-600">Storage</span>
-                    <span className="font-medium">{plan.limits.storage}</span>
+                    <span className="font-medium text-gray-900">{plan.limits.storage}</span>
                   </li>
                 </ul>
               </div>
