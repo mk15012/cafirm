@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
 import { TaskStatus } from '@prisma/client';
 import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
+import { generateTaxDeadlineTasks, getCurrentFinancialYear, getNextFinancialYear } from '../utils/taxDeadlines';
 
 export async function getTasks(req: Request, res: Response) {
   try {
@@ -355,8 +356,9 @@ export async function updateTask(req: Request, res: Response) {
         'OVERDUE': ['IN_PROGRESS', 'AWAITING_APPROVAL', 'COMPLETED'], // Handle overdue tasks
       };
 
-      // CA can do anything - no restrictions
-      if (user.role !== 'CA') {
+      // CA and INDIVIDUAL users can do anything - no restrictions
+      // INDIVIDUAL users manage their own personal tasks, so they should have full control
+      if (user.role !== 'CA' && user.role !== 'INDIVIDUAL') {
         const allowedTransitions = user.role === 'MANAGER' 
           ? managerAllowedTransitions 
           : staffAllowedTransitions;
@@ -519,5 +521,111 @@ async function getTeamUserIds(managerId: number): Promise<number[]> {
     select: { id: true },
   });
   return [managerId, ...teamMembers.map(u => u.id)];
+}
+
+/**
+ * Generate tax deadline tasks for INDIVIDUAL users
+ * Can be used to regenerate tasks for current or next FY
+ */
+export async function generateTaxTasks(req: Request, res: Response) {
+  try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Only INDIVIDUAL users can use this
+    const userData = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { role: true },
+    });
+
+    if (userData?.role !== 'INDIVIDUAL') {
+      return res.status(403).json({ error: 'This feature is only for Individual users' });
+    }
+
+    const { financialYear } = req.body;
+    const targetFY = financialYear || getCurrentFinancialYear();
+
+    // Find the user's personal firm
+    const firm = await prisma.firm.findFirst({
+      where: {
+        createdById: user.userId,
+        entityType: 'INDIVIDUAL',
+      },
+    });
+
+    if (!firm) {
+      return res.status(404).json({ error: 'Personal firm not found. Please contact support.' });
+    }
+
+    // Check for existing tasks in this FY to avoid duplicates
+    const existingTasks = await prisma.task.findMany({
+      where: {
+        firmId: firm.id,
+        title: { contains: `FY ${targetFY}` },
+      },
+    });
+
+    if (existingTasks.length > 0) {
+      return res.status(400).json({ 
+        error: `Tasks for FY ${targetFY} already exist. Delete them first if you want to regenerate.`,
+        existingCount: existingTasks.length,
+      });
+    }
+
+    // Generate and create tasks
+    const taskData = generateTaxDeadlineTasks(firm.id, user.userId, targetFY);
+    
+    if (taskData.length === 0) {
+      return res.status(400).json({ 
+        error: 'No upcoming deadlines to create. All deadlines for this FY have passed.',
+      });
+    }
+
+    await prisma.task.createMany({
+      data: taskData,
+    });
+
+    res.status(201).json({
+      message: `Created ${taskData.length} tax deadline tasks for FY ${targetFY}`,
+      count: taskData.length,
+      financialYear: targetFY,
+    });
+  } catch (error) {
+    console.error('Generate tax tasks error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
+ * Generate tasks for the next financial year
+ */
+export async function generateNextYearTasks(req: Request, res: Response) {
+  try {
+    const user = (req as AuthRequest).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userData = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { role: true },
+    });
+
+    if (userData?.role !== 'INDIVIDUAL') {
+      return res.status(403).json({ error: 'This feature is only for Individual users' });
+    }
+
+    const currentFY = getCurrentFinancialYear();
+    const nextFY = getNextFinancialYear(currentFY);
+
+    // Forward to the main generator with next FY
+    req.body.financialYear = nextFY;
+    return generateTaxTasks(req, res);
+  } catch (error) {
+    console.error('Generate next year tasks error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 }
 

@@ -15,7 +15,7 @@ export default function Index() {
 
   const handleContinue = () => {
     if (isAuthenticated) {
-      router.push('/dashboard');
+      router.replace('/(tabs)');
     } else {
       router.push('/auth/login');
     }

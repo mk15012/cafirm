@@ -2,7 +2,7 @@
 
 ## 📋 Overview
 
-**CA Firm Pro** is a comprehensive practice management solution designed specifically for Chartered Accountants (CAs) and their firms. It provides tools for client management, task tracking, document storage, invoicing, team collaboration, and more.
+**CA Firm Pro** is a comprehensive practice management solution designed specifically for Chartered Accountants (CAs) and their firms. It provides tools for client management, task tracking, document storage, invoicing, team collaboration, compliance management, and more.
 
 ---
 
@@ -11,7 +11,7 @@
 | Platform | Status | Access |
 |----------|--------|--------|
 | Web Application | ✅ Live | [cafirm.vercel.app](https://cafirm.vercel.app) |
-| Android App (APK) | ✅ Available | Download from website |
+| Android App (APK) | ✅ Available | Download from EAS Build / Website |
 | iOS App | 🔜 Coming Soon | TestFlight (planned) |
 | Mobile Web | ✅ Live | Responsive design |
 
@@ -25,6 +25,7 @@
 - View revenue and financial analytics
 - Manage subscription and billing
 - Access all clients, tasks, and documents
+- Manage multiple firms
 
 ### 2. Manager
 - Manage assigned clients
@@ -38,6 +39,12 @@
 - Access assigned client information
 - Upload documents
 - Limited dashboard view
+
+### 4. Individual
+- Personal dashboard with "My Reminders"
+- Manage personal tasks and documents
+- Self-service portal access
+- Limited to personal account features
 
 ---
 
@@ -60,14 +67,18 @@
 
 ### Metrics Overview (Role-based)
 
-| Metric | CA | Manager | Staff |
-|--------|:--:|:-------:|:-----:|
-| Total Clients | ✅ | ✅ | ❌ |
-| Active Tasks | ✅ | ✅ | ✅ |
-| Pending Tasks | ✅ | ✅ | ✅ |
-| Monthly Revenue | ✅ | ❌ | ❌ |
-| Documents | ✅ | ✅ | ✅ |
-| Team Members | ✅ | ✅ | ❌ |
+| Metric | CA | Manager | Staff | Individual |
+|--------|:--:|:-------:|:-----:|:----------:|
+| Total Clients | ✅ | ✅ | ❌ | ❌ |
+| Total Firms | ✅ | ✅ | ❌ | ❌ |
+| Active Tasks | ✅ | ✅ | ✅ | ❌ |
+| My Reminders | ❌ | ❌ | ❌ | ✅ |
+| Pending Approvals | ✅ | ✅ | ❌ | ❌ |
+| Overdue Items | ✅ | ✅ | ✅ | ✅ |
+| Monthly Revenue | ✅ | ❌ | ❌ | ❌ |
+| Documents | ✅ | ✅ | ✅ | ✅ |
+| Team Members | ✅ | ✅ | ❌ | ❌ |
+| Unpaid Invoices | ✅ | ❌ | ❌ | ❌ |
 
 ### Quick Actions
 - Add new client
@@ -75,6 +86,17 @@
 - Upload document
 - Schedule meeting
 - View reports
+
+---
+
+## 🏢 Firm Management
+
+| Feature | Description |
+|---------|-------------|
+| Multi-Firm Support | Manage multiple CA firms from one account |
+| Firm Details | Name, registration number, GST, address |
+| Team Assignment | Assign team members to specific firms |
+| Firm-based Filtering | View data filtered by firm |
 
 ---
 
@@ -89,6 +111,7 @@
 | Client Details | View complete client profile |
 | Client Portal Credentials | Secure storage for client login credentials |
 | Assign to Team | Assign clients to managers/staff |
+| Firm Association | Link clients to specific firms |
 
 ### Client Information Fields
 - Name & Contact Details
@@ -98,6 +121,7 @@
 - Address
 - Business Type
 - Notes
+- Birthday (DD-MM-YYYY format)
 
 ---
 
@@ -108,18 +132,19 @@
 | Create Task | Add new tasks with details |
 | Assign Task | Assign to team members |
 | Task Priority | High, Medium, Low priority levels |
-| Task Status | Pending, In Progress, Completed, Cancelled |
+| Task Status | Pending, In Progress, Awaiting Approval, Completed, Error, Overdue |
 | Due Dates | Set and track deadlines |
 | Task Categories | ITR, GST, TDS, Audit, Compliance, Other |
 | Task Comments | Add notes and updates |
 | Task Filters | Filter by status, priority, assignee |
+| Firm Association | Link tasks to specific firms |
 
 ### Task Workflow
 1. **Create** → Task is created with details
 2. **Assign** → Assigned to team member
 3. **In Progress** → Work has started
-4. **Completed** → Task finished
-5. **Verified** → (Optional) CA verification
+4. **Awaiting Approval** → Submitted for review
+5. **Completed** → Task finished and verified
 
 ---
 
@@ -133,6 +158,7 @@
 | Download | Download documents anytime |
 | Delete | Remove documents (with confirmation) |
 | Client Association | Link documents to specific clients |
+| Firm Association | Link documents to specific firms |
 
 ### Supported Document Types
 - PDF, DOC, DOCX
@@ -160,6 +186,42 @@
 - Amounts & Taxes
 - Due Date
 - Payment Terms
+
+---
+
+## ✅ Approval Workflow
+
+| Feature | Description |
+|---------|-------------|
+| Task Approvals | Review and approve submitted tasks |
+| Approval Queue | View all pending approvals |
+| Approve/Reject | Accept or return tasks for revision |
+| Comments | Add feedback on rejections |
+| Status Tracking | Track approval status |
+
+---
+
+## 📋 Activity Logs
+
+| Feature | Description |
+|---------|-------------|
+| Audit Trail | Complete history of all actions |
+| User Actions | Track who did what and when |
+| Entity Tracking | Log changes to clients, tasks, documents |
+| Timestamps | Precise date/time logging |
+| Filtering | Filter by action type, user, date |
+
+---
+
+## 🔐 Credentials Vault
+
+| Feature | Description |
+|---------|-------------|
+| Secure Storage | AES-256 encrypted credential storage |
+| Client Credentials | Store client portal logins |
+| Multiple Portals | Income Tax, GST, MCA, Bank portals |
+| Quick Access | One-click copy functionality |
+| Organized View | Grouped by client and portal type |
 
 ---
 
@@ -197,6 +259,25 @@
 
 ---
 
+## ✅ Compliance Management
+
+| Feature | Description |
+|---------|-------------|
+| Compliance Rules | Predefined compliance requirements |
+| Due Date Tracking | Track filing deadlines |
+| Status Monitoring | Pending, Filed, Overdue status |
+| Client Compliance | Per-client compliance tracking |
+| Alerts | Overdue compliance notifications |
+
+### Compliance Types
+- GST Returns (GSTR-1, GSTR-3B)
+- TDS Returns
+- Income Tax Returns
+- Annual Filings
+- ROC Compliance
+
+---
+
 ## 👨‍👩‍👧‍👦 Team Management (CA Only)
 
 | Feature | Description |
@@ -207,31 +288,29 @@
 | Remove Member | Deactivate team accounts |
 | Performance View | See individual performance |
 
-### Team Limits by Plan
-| Plan | Team Members |
-|------|-------------|
-| Free | 1 (CA only) |
-| Starter | 3 |
-| Professional | 10 |
-| Enterprise | Unlimited |
-
 ---
 
-## 💳 Subscription Plans
+## 💳 Subscription & Payments
+
+### Payment Integration
+- **Razorpay Integration** - Secure payment processing
+- Monthly and yearly billing options
+- Automatic subscription management
+- Payment verification and receipts
 
 ### Plan Comparison
 
-| Feature | Free | Starter | Professional | Enterprise |
-|---------|:----:|:-------:|:------------:|:----------:|
-| **Monthly Price** | ₹0 | ₹499 | ₹999 | ₹2,499 |
-| **Clients** | 5 | 25 | 100 | Unlimited |
-| **Team Members** | 1 | 3 | 10 | Unlimited |
-| **Documents** | 50 | 500 | 2000 | Unlimited |
-| **Storage** | 100 MB | 1 GB | 5 GB | Unlimited |
-| **Invoices** | 10 | 50 | 200 | Unlimited |
-| **Tax Calculator** | ❌ | ✅ | ✅ | ✅ |
+| Feature | Free (Starter) | Basic | Professional | Enterprise |
+|---------|:--------------:|:-----:|:------------:|:----------:|
+| **Monthly Price** | ₹0 | ₹499 | ₹1,499 | ₹4,999 |
+| **Yearly Price** | ₹0 | ₹4,999 | ₹14,999 | ₹49,999 |
+| **Clients** | 50 | 200 | 1,000 | Unlimited |
+| **Users** | 2 | 10 | 50 | Unlimited |
+| **Storage** | 1 GB | 10 GB | 100 GB | Unlimited |
+| **Credentials** | 100 | 500 | 5,000 | Unlimited |
+| **Tax Calculator** | ✅ | ✅ | ✅ | ✅ |
+| **Document Mgmt** | ✅ | ✅ | ✅ | ✅ |
 | **Reports** | Basic | ✅ | ✅ | ✅ |
-| **Document Mgmt** | ❌ | ✅ | ✅ | ✅ |
 | **Meeting Scheduler** | ❌ | ✅ | ✅ | ✅ |
 | **Custom Branding** | ❌ | ❌ | ✅ | ✅ |
 | **API Access** | ❌ | ❌ | ❌ | ✅ |
@@ -244,10 +323,20 @@
 | Feature | Description |
 |---------|-------------|
 | View Profile | See your account details |
-| Edit Profile | Update name, phone, etc. |
+| Edit Profile | Update name, phone, birthday (DD-MM-YYYY) |
 | Change Password | Update account password |
 | Profile Photo | Upload profile picture |
 | Firm Details | Update firm information (CA only) |
+
+---
+
+## 🧮 Tools
+
+### Tax Calculator
+- Income tax calculation
+- Old vs New regime comparison
+- Deductions and exemptions
+- Tax liability estimation
 
 ---
 
@@ -261,13 +350,14 @@
 - Meeting scheduling
 - Reports & analytics
 - Subscription settings
-- Push notifications (planned)
+- Credentials vault
+- Compliance tracking
 
 ### Mobile-Specific
 - Native alerts and confirmations
 - Optimized mobile UI
-- Offline capability (planned)
-- Camera integration for document capture (planned)
+- Touch-friendly interface
+- Date picker with DD-MM-YYYY format
 
 ---
 
@@ -275,12 +365,12 @@
 
 ### Design Features
 - Modern, clean interface
-- Dark/Light theme support (planned)
 - Responsive design (mobile-friendly)
 - Intuitive navigation
 - Quick action buttons
 - Search functionality
 - Filter and sort options
+- Gradient headers and accents
 
 ### Accessibility
 - Keyboard navigation
@@ -296,23 +386,27 @@
 
 | Component | Technology |
 |-----------|------------|
-| Frontend (Web) | Next.js 14, React, TypeScript |
+| Frontend (Web) | Next.js 14, React, TypeScript, Tailwind CSS |
 | Mobile App | React Native, Expo |
-| Backend | Node.js, Express.js |
-| Database | PostgreSQL (Production), MySQL (Local) |
+| Backend | Node.js, Express.js, TypeScript |
+| Database | PostgreSQL (Production), MySQL (Local Dev) |
 | ORM | Prisma |
 | Authentication | JWT (JSON Web Tokens) |
+| Payment Gateway | Razorpay |
 | Hosting | Vercel (Web), Render (Backend) |
 | Database Hosting | Neon (PostgreSQL) |
+| Mobile Build | EAS Build (Expo Application Services) |
 
 ### Security Measures
 - HTTPS encryption
 - Rate limiting
 - Input sanitization
-- SQL injection prevention
+- SQL injection prevention (Prisma)
 - XSS protection
 - CORS configuration
 - Secure password hashing (bcrypt)
+- AES-256 encryption for credentials
+- JWT token authentication
 
 ---
 
@@ -323,17 +417,27 @@
 - [ ] Push Notifications
 - [ ] Email Notifications
 - [ ] Calendar Integration (Google/Outlook)
-- [ ] Razorpay Payment Integration
 - [ ] WhatsApp Integration
 - [ ] Bulk SMS Notifications
 - [ ] Advanced Reporting
 - [ ] Custom Report Builder
 - [ ] Client Portal (Client Login)
-- [ ] Audit Trail / Activity Logs
 - [ ] Two-Factor Authentication (2FA)
 - [ ] Dark Mode
 - [ ] Multi-language Support
 - [ ] Offline Mode (Mobile)
+- [ ] Document OCR & Scanning
+- [ ] Automated Task Creation
+- [ ] Deadline Reminders
+
+### Completed Features ✅
+- [x] Razorpay Payment Integration
+- [x] Activity Logs / Audit Trail
+- [x] Credentials Vault
+- [x] Compliance Management
+- [x] Approval Workflow
+- [x] Multi-Firm Support
+- [x] Individual User Role
 
 ---
 
@@ -350,8 +454,9 @@
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | Jan 2026 | Initial Release |
+| 1.1.0 | Jan 2026 | Razorpay integration, Activity logs, Credentials vault |
+| 1.2.0 | Jan 2026 | Individual role, DD-MM-YYYY date format, Subscription limits display |
 
 ---
 
 *© 2026 CA Firm Pro. All rights reserved.*
-

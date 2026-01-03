@@ -108,12 +108,15 @@ export default function CredentialsScreen() {
     return grouped;
   }, [filteredCredentials]);
 
+  const isIndividual = user?.role === 'INDIVIDUAL';
+  const canAccess = user?.role === 'CA' || user?.role === 'INDIVIDUAL';
+
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'CA') {
+    if (isAuthenticated && canAccess) {
       loadData();
-    } else if (isAuthenticated && user?.role !== 'CA') {
+    } else if (isAuthenticated && !canAccess) {
       router.replace('/dashboard');
-      Alert.alert('Access Denied', 'Only CA can access portal credentials');
+      Alert.alert('Access Denied', 'You do not have access to credentials');
     }
   }, [isAuthenticated, user]);
 
@@ -217,7 +220,23 @@ export default function CredentialsScreen() {
     Alert.alert('Copied', `${label} copied to clipboard`);
   };
 
-  if (!isAuthenticated || user?.role !== 'CA') {
+  const handleOpenAddModal = () => {
+    // For INDIVIDUAL users, auto-select their personal client and firm
+    if (isIndividual && clients.length > 0) {
+      const personalClient = clients.find(c => c.name.includes('Personal Finances'));
+      if (personalClient) {
+        setSelectedClientId(personalClient.id);
+        setFormData(prev => ({ 
+          ...prev, 
+          clientId: String(personalClient.id),
+          firmId: personalClient.firms?.[0]?.id ? String(personalClient.firms[0].id) : '',
+        }));
+      }
+    }
+    setShowAddModal(true);
+  };
+
+  if (!isAuthenticated || !canAccess) {
     return null;
   }
 
@@ -233,12 +252,12 @@ export default function CredentialsScreen() {
             >
               <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
+            <TouchableOpacity style={styles.addButton} onPress={handleOpenAddModal}>
               <Text style={styles.addButtonText}>+ Add</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.headerTitle}>🔐 Portal Credentials</Text>
-          <Text style={styles.headerSubtitle}>Securely store client govt portal logins</Text>
+          <Text style={styles.headerTitle}>🔐 {isIndividual ? 'My Credentials' : 'Portal Credentials'}</Text>
+          <Text style={styles.headerSubtitle}>{isIndividual ? 'Store your portal logins securely' : 'Securely store client govt portal logins'}</Text>
         </View>
 
         {/* Search */}
@@ -379,34 +398,39 @@ export default function CredentialsScreen() {
               <Text style={styles.modalTitle}>Add Credential</Text>
               
               <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.inputLabel}>Client *</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={selectedClientId}
-                    onValueChange={handleClientChange}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Select Client" value={null} />
-                    {clients.map(client => (
-                      <Picker.Item key={client.id} label={client.name} value={client.id} />
-                    ))}
-                  </Picker>
-                </View>
+                {/* Hide client/firm selection for INDIVIDUAL users */}
+                {!isIndividual && (
+                  <>
+                    <Text style={styles.inputLabel}>Client *</Text>
+                    <View style={styles.pickerContainer}>
+                      <Picker
+                        selectedValue={selectedClientId}
+                        onValueChange={handleClientChange}
+                        style={styles.picker}
+                      >
+                        <Picker.Item label="Select Client" value={null} />
+                        {clients.map(client => (
+                          <Picker.Item key={client.id} label={client.name} value={client.id} />
+                        ))}
+                      </Picker>
+                    </View>
 
-                <Text style={styles.inputLabel}>Firm (Optional)</Text>
-                <View style={[styles.pickerContainer, !selectedClientId && styles.pickerDisabled]}>
-                  <Picker
-                    selectedValue={formData.firmId}
-                    onValueChange={(v) => setFormData({ ...formData, firmId: v || '' })}
-                    enabled={!!selectedClientId}
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="All Firms / Client Level" value="" />
-                    {filteredFirms.map(firm => (
-                      <Picker.Item key={firm.id} label={firm.name} value={firm.id.toString()} />
-                    ))}
-                  </Picker>
-                </View>
+                    <Text style={styles.inputLabel}>Firm (Optional)</Text>
+                    <View style={[styles.pickerContainer, !selectedClientId && styles.pickerDisabled]}>
+                      <Picker
+                        selectedValue={formData.firmId}
+                        onValueChange={(v) => setFormData({ ...formData, firmId: v || '' })}
+                        enabled={!!selectedClientId}
+                        style={styles.picker}
+                      >
+                        <Picker.Item label="All Firms / Client Level" value="" />
+                        {filteredFirms.map(firm => (
+                          <Picker.Item key={firm.id} label={firm.name} value={firm.id.toString()} />
+                        ))}
+                      </Picker>
+                    </View>
+                  </>
+                )}
 
                 <Text style={styles.inputLabel}>Portal *</Text>
                 <View style={styles.pickerContainer}>

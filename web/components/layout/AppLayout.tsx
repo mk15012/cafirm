@@ -23,7 +23,10 @@ interface AppLayoutProps {
 export default function AppLayout({ children, title }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, logout } = useAuthStore();
+  const { user, logout, isLoading } = useAuthStore();
+  
+  // Determine if user is INDIVIDUAL (only after loading is complete to avoid flash)
+  const isIndividual = !isLoading && user?.role === 'INDIVIDUAL';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCAAccess, setShowCAAccess] = useState(false);
   const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -168,6 +171,33 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
     });
   };
 
+  // Format date as DD-MM-YYYY for display/input
+  // Parse directly from YYYY-MM-DD to avoid timezone issues
+  const formatDateDDMMYYYY = (dateString: string) => {
+    if (!dateString) return '';
+    // If already in DD-MM-YYYY format, return as is
+    if (/^\d{2}-\d{2}-\d{4}$/.test(dateString)) return dateString;
+    // Parse YYYY-MM-DD format
+    const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    return dateString;
+  };
+
+  // Convert DD-MM-YYYY to YYYY-MM-DD for API
+  const convertToISODate = (ddmmyyyy: string): string => {
+    if (!ddmmyyyy) return '';
+    // Check if already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ddmmyyyy)) return ddmmyyyy;
+    // Convert DD-MM-YYYY to YYYY-MM-DD
+    const parts = ddmmyyyy.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return ddmmyyyy;
+  };
+
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError(null);
@@ -218,7 +248,12 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
 
     try {
       setSavingProfile(true);
-      const response = await api.put('/auth/profile', editData);
+      // Convert birthday from DD-MM-YYYY to YYYY-MM-DD for API
+      const profileData = {
+        ...editData,
+        birthday: convertToISODate(editData.birthday),
+      };
+      const response = await api.put('/auth/profile', profileData);
       setProfile(response.data);
       toast.success('Profile updated successfully! ✨');
       setActiveTab('profile');
@@ -250,32 +285,39 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
 
           <nav className="flex-1 p-4 overflow-y-auto">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-3">
-              MAIN NAVIGATION
+              {isIndividual ? 'MY DOCUMENTS' : 'MAIN NAVIGATION'}
             </p>
             <NavLink href="/dashboard" icon={Activity} active={pathname === '/dashboard'}>
               Dashboard
             </NavLink>
             <NavLink href="/tasks" icon={CheckSquare} active={pathname === '/tasks' || pathname?.startsWith('/tasks/')}>
-              Tasks
+              {isIndividual ? 'My Reminders' : 'Tasks'}
             </NavLink>
             <NavLink href="/documents" icon={FileText} active={pathname === '/documents'}>
-              Documents
+              {isIndividual ? 'My Documents' : 'Documents'}
             </NavLink>
-            <NavLink href="/clients" icon={Users} active={pathname === '/clients' || pathname?.startsWith('/clients/')}>
-              Clients
-            </NavLink>
-            <NavLink href="/firms" icon={Building2} active={pathname === '/firms' || pathname?.startsWith('/firms/')}>
-              Firms
-            </NavLink>
-            <NavLink href="/invoices" icon={Receipt} active={pathname === '/invoices'}>
-              Invoices
-            </NavLink>
-            <NavLink href="/approvals" icon={Clock} active={pathname === '/approvals'}>
-              Approvals
-            </NavLink>
-            <NavLink href="/compliance" icon={Calendar} active={pathname === '/compliance'}>
-              Compliance
-            </NavLink>
+            
+            {/* CA/Team specific navigation - hide for INDIVIDUAL users and during loading */}
+            {!isLoading && !isIndividual && (
+              <>
+                <NavLink href="/clients" icon={Users} active={pathname === '/clients' || pathname?.startsWith('/clients/')}>
+                  Clients
+                </NavLink>
+                <NavLink href="/firms" icon={Building2} active={pathname === '/firms' || pathname?.startsWith('/firms/')}>
+                  Firms
+                </NavLink>
+                <NavLink href="/invoices" icon={Receipt} active={pathname === '/invoices'}>
+                  Invoices
+                </NavLink>
+                <NavLink href="/approvals" icon={Clock} active={pathname === '/approvals'}>
+                  Approvals
+                </NavLink>
+                <NavLink href="/compliance" icon={Calendar} active={pathname === '/compliance'}>
+                  Compliance
+                </NavLink>
+              </>
+            )}
+            
             {user?.role === 'CA' && (
               <>
                 <NavLink href="/users" icon={User} active={pathname === '/users'}>
@@ -298,7 +340,7 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
               Tax Calculator
             </NavLink>
             <NavLink href="/tools/credentials" icon={Key} active={pathname === '/tools/credentials'}>
-              Portal Credentials
+              {isIndividual ? 'My Credentials' : 'Portal Credentials'}
             </NavLink>
 
             {/* Settings Section - CA Only */}
@@ -361,13 +403,15 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setShowMeetingModal(true)}
-                  className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Calendar className="w-4 h-4" />
-                  Schedule Meeting
-                </button>
+                {!isLoading && !isIndividual && (
+                  <button
+                    onClick={() => setShowMeetingModal(true)}
+                    className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Schedule Meeting
+                  </button>
+                )}
                 <button
                   onClick={() => setShowProfileModal(true)}
                   className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity rounded-lg p-2 -m-2"
@@ -688,10 +732,11 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                     </button>
                     <button
                       onClick={() => {
+                        const birthdayISO = profile?.birthday ? profile.birthday.split('T')[0] : '';
                         setEditData({ 
                           name: profile?.name || '', 
                           phone: profile?.phone || '',
-                          birthday: profile?.birthday ? profile.birthday.split('T')[0] : '',
+                          birthday: birthdayISO ? formatDateDDMMYYYY(birthdayISO) : '',
                         });
                         setEditError(null);
                         setActiveTab('edit');
@@ -854,13 +899,13 @@ export default function AppLayout({ children, title }: AppLayoutProps) {
                             🎂 Birthday
                           </label>
                           <input
-                            type="date"
+                            type="text"
+                            placeholder="DD-MM-YYYY (e.g., 15-01-1990)"
                             value={editData.birthday}
                             onChange={(e) => setEditData({ ...editData, birthday: e.target.value })}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                            style={{ colorScheme: 'light' }}
                           />
-                          <p className="text-xs text-gray-500 mt-1">Add your birthday to receive greetings from the team! 🎉</p>
+                          <p className="text-xs text-gray-500 mt-1">Add your birthday to receive greetings from the team! Format: DD-MM-YYYY 🎉</p>
                         </div>
 
                         <div className="flex gap-3 pt-4">

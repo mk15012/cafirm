@@ -384,3 +384,5 @@ VALUES
   ('ENTERPRISE', 'Enterprise', 'For large CA firms with unlimited needs', 249900, 2499900, -1, -1, -1, -1, -1, '{"taxCalculator":true,"approvalWorkflow":true,"activityLogs":true,"documentManagement":true,"invoiceManagement":true,"meetings":true,"customBranding":true,"apiAccess":true,"prioritySupport":true}', true, false, 3, NOW(), NOW());
 
 
+
+

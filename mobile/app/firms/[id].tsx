@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
@@ -114,30 +115,30 @@ export default function FirmDetailScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/firms')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Firm Details</Text>
+          <Text style={styles.headerTitle}>Firm Details</Text>
           <View style={{ width: 60 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0284c7" />
+          <ActivityIndicator size="large" color="#0ea5e9" />
           <Text style={styles.loadingText}>Loading firm...</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error || !firm) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/firms')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Firm Details</Text>
+          <Text style={styles.headerTitle}>Firm Details</Text>
           <View style={{ width: 60 }} />
         </View>
         <View style={styles.errorContainer}>
@@ -147,22 +148,23 @@ export default function FirmDetailScreen() {
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadFirm} />}
-    >
+    <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/firms')}>
           <Text style={styles.backButton}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Firm Details</Text>
+        <Text style={styles.headerTitle}>Firm Details</Text>
         <View style={{ width: 60 }} />
       </View>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadFirm} />}
+      >
 
       {/* Firm Information */}
       <View style={styles.card}>
@@ -309,33 +311,35 @@ export default function FirmDetailScreen() {
           <Text style={styles.emptyText}>This firm doesn't have any tasks, documents, or invoices yet.</Text>
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8fafc',
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
-    backgroundColor: 'white',
+    backgroundColor: '#0f172a',
     padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   backButton: {
     fontSize: 16,
-    color: '#0284c7',
-    fontWeight: '500',
+    color: '#0ea5e9',
+    fontWeight: '600',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   loadingContainer: {
     flex: 1,

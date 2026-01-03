@@ -46,7 +46,7 @@ interface BirthdayData {
   }>;
 }
 
-export default function DashboardScreen() {
+export default function HomeScreen() {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuthStore();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -61,7 +61,6 @@ export default function DashboardScreen() {
   const isCA = user?.role === 'CA';
   const isManager = user?.role === 'MANAGER';
   const isIndividual = user?.role === 'INDIVIDUAL';
-  const canApprove = isCA || isManager;
 
   const doLogout = async () => {
     try {
@@ -140,7 +139,7 @@ export default function DashboardScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
         <ActivityIndicator size="large" color="#0ea5e9" />
         <Text style={styles.loadingText}>Loading dashboard...</Text>
       </SafeAreaView>
@@ -149,52 +148,13 @@ export default function DashboardScreen() {
 
   if (!isAuthenticated) return null;
 
-  // Quick access buttons based on role
-  const quickAccessButtons = isIndividual
-    ? [
-        // INDIVIDUAL users only see personal features
-        { title: 'My Reminders', route: '/tasks', color: '#3b82f6', icon: '📋' },
-        { title: 'My Documents', route: '/documents', color: '#8b5cf6', icon: '📄' },
-        { title: 'Profile', route: '/profile', color: '#ec4899', icon: '👤' },
-      ]
-    : [
-        // CA/Team users see full features
-        { title: 'Tasks', route: '/tasks', color: '#3b82f6', icon: '📋' },
-        { title: 'Clients', route: '/clients', color: '#6366f1', icon: '🏢' },
-        { title: 'Firms', route: '/firms', color: '#06b6d4', icon: '🏛️' },
-        { title: 'Invoices', route: '/invoices', color: '#10b981', icon: '💰' },
-        { title: 'Documents', route: '/documents', color: '#8b5cf6', icon: '📄' },
-        { title: 'Profile', route: '/profile', color: '#ec4899', icon: '👤' },
-      ];
-
-  // Add role-specific buttons (only for non-INDIVIDUAL users)
-  if (!isIndividual && canApprove) {
-    quickAccessButtons.push({ title: 'Approvals', route: '/approvals', color: '#f59e0b', icon: '✅' });
-    quickAccessButtons.push({ title: 'Meetings', route: '/meetings', color: '#0891b2', icon: '📅' });
-  }
-  if (isCA) {
-    quickAccessButtons.push({ title: 'Users', route: '/users', color: '#a855f7', icon: '👥' });
-    quickAccessButtons.push({ title: 'Activity', route: '/activity-logs', color: '#64748b', icon: '📊' });
-    quickAccessButtons.push({ title: 'Reports', route: '/reports', color: '#dc2626', icon: '📈' });
-    quickAccessButtons.push({ title: 'Compliance', route: '/compliance', color: '#14b8a6', icon: '📅' });
-  }
-
-  // Tools section buttons
-  const toolButtons = [
-    { title: 'Tax Calc', route: '/tools/tax-calculator', color: '#059669', icon: '🧮' },
-    { title: isIndividual ? 'My Credentials' : 'Credentials', route: '/tools/credentials', color: '#7c3aed', icon: '🔐' },
-  ];
-  if (isCA) {
-    toolButtons.push({ title: 'Services', route: '/settings/services', color: '#6366f1', icon: '📦' });
-    toolButtons.push({ title: 'Subscription', route: '/settings/subscription', color: '#f59e0b', icon: '👑' });
-  }
-
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar style="light" backgroundColor="#1e293b" />
       <ScrollView
         style={styles.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0ea5e9']} />}
+        contentContainerStyle={styles.scrollContent}
       >
         {/* Birthday Greeting - Show if it's user's birthday */}
         {birthdayData?.isMyBirthday && showMyBirthdayBanner && (
@@ -245,11 +205,15 @@ export default function DashboardScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>Dashboard</Text>
-            <Text style={styles.headerSubtitle}>{getCurrentGreeting()}, {user?.name} !!</Text>
-            <View style={[styles.roleBadge, { backgroundColor: isCA ? '#a855f720' : isManager ? '#3b82f620' : '#6b728020' }]}>
-              <Text style={[styles.roleText, { color: isCA ? '#a855f7' : isManager ? '#3b82f6' : '#6b7280' }]}>{user?.role}</Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>
+              {isIndividual ? 'My Dashboard' : 'Dashboard'}
+            </Text>
+            <Text style={styles.headerSubtitle}>{getCurrentGreeting()}, {user?.name?.split(' ')[0]}!</Text>
+            <View style={[styles.roleBadge, { backgroundColor: isCA ? '#a855f720' : isManager ? '#3b82f620' : isIndividual ? '#10b98120' : '#6b728020' }]}>
+              <Text style={[styles.roleText, { color: isCA ? '#a855f7' : isManager ? '#3b82f6' : isIndividual ? '#10b981' : '#6b7280' }]}>
+                {isIndividual ? 'Personal' : user?.role}
+              </Text>
             </View>
           </View>
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
@@ -260,12 +224,22 @@ export default function DashboardScreen() {
         {/* Metrics Grid */}
         {metrics && (
           <View style={styles.metricsGrid}>
-            <MetricCard title={isIndividual ? "My Reminders" : "Active Tasks"} value={metrics.activeTasks} color="#3b82f6" icon="📋" />
+            <MetricCard 
+              title={isIndividual ? "My Reminders" : "Active Tasks"} 
+              value={metrics.activeTasks} 
+              color="#3b82f6" 
+              icon="📋" 
+            />
             {!isIndividual && (
               <MetricCard title="Pending Approvals" value={metrics.pendingApprovals} color="#a855f7" icon="⏳" />
             )}
             <MetricCard title="Overdue Items" value={metrics.overdueItems} color="#ef4444" icon="⚠️" />
-            <MetricCard title={isIndividual ? "My Documents" : "Documents"} value={metrics.documents} color="#8b5cf6" icon="📄" />
+            <MetricCard 
+              title={isIndividual ? "My Documents" : "Documents"} 
+              value={metrics.documents} 
+              color="#8b5cf6" 
+              icon="📄" 
+            />
             {!isIndividual && (
               <>
                 <MetricCard title="Active Clients" value={metrics.activeClients} color="#10b981" icon="🏢" />
@@ -281,45 +255,13 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* Quick Access */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Access</Text>
-          <View style={styles.quickAccessGrid}>
-            {quickAccessButtons.map((button) => (
-              <TouchableOpacity 
-                key={button.route}
-                style={[styles.quickAccessButton, { borderColor: button.color }]} 
-                onPress={() => router.push(button.route as any)}
-              >
-                <Text style={styles.quickAccessIcon}>{button.icon}</Text>
-                <Text style={[styles.quickAccessText, { color: button.color }]}>{button.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Tools Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tools</Text>
-          <View style={styles.quickAccessGrid}>
-            {toolButtons.map((button) => (
-              <TouchableOpacity 
-                key={button.route}
-                style={[styles.quickAccessButton, { borderColor: button.color }]} 
-                onPress={() => router.push(button.route as any)}
-              >
-                <Text style={styles.quickAccessIcon}>{button.icon}</Text>
-                <Text style={[styles.quickAccessText, { color: button.color }]}>{button.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
         {/* Recent Tasks */}
         {recentTasks.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Recent Tasks</Text>
+              <Text style={styles.sectionTitle}>
+                {isIndividual ? 'My Upcoming Reminders' : 'Recent Tasks'}
+              </Text>
               <TouchableOpacity onPress={() => router.push('/tasks')}>
                 <Text style={styles.viewAll}>View All →</Text>
               </TouchableOpacity>
@@ -331,7 +273,9 @@ export default function DashboardScreen() {
                 onPress={() => router.push(`/tasks/${task.id}`)}
               >
                 <Text style={styles.taskTitle}>{task.title}</Text>
-                <Text style={styles.taskSubtext}>{task.firm.client.name} • {task.firm.name}</Text>
+                {!isIndividual && (
+                  <Text style={styles.taskSubtext}>{task.firm?.client?.name} • {task.firm?.name}</Text>
+                )}
                 <View style={styles.taskFooter}>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(task.status) }]}>
                     <Text style={styles.statusBadgeText}>{task.status.replace('_', ' ')}</Text>
@@ -342,6 +286,9 @@ export default function DashboardScreen() {
             ))}
           </View>
         )}
+        
+        {/* Bottom padding for tab bar */}
+        <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -382,17 +329,20 @@ function getStatusColor(status: string): string {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f8fafc' },
+  safeArea: { flex: 1, backgroundColor: '#0f172a' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
   loadingText: { marginTop: 12, fontSize: 16, color: '#64748b' },
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  scrollContent: { paddingBottom: 20 },
   header: {
     backgroundColor: '#0f172a',
     padding: 20,
+    paddingTop: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  headerLeft: { flex: 1 },
   headerTitle: { fontSize: 24, fontWeight: '700', color: '#ffffff' },
   headerSubtitle: { fontSize: 14, color: '#94a3b8', marginTop: 4 },
   roleBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, alignSelf: 'flex-start', marginTop: 8 },
@@ -430,7 +380,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickAccessIcon: { fontSize: 24, marginBottom: 8 },
-  quickAccessText: { fontSize: 12, fontWeight: '600' },
+  quickAccessText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  quickActionButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionIcon: { fontSize: 28, marginBottom: 8 },
+  quickActionText: { fontSize: 13, fontWeight: '600', color: 'white' },
   taskCard: {
     backgroundColor: 'white',
     padding: 16,
@@ -579,3 +543,4 @@ const styles = StyleSheet.create({
     color: '#92400e',
   },
 });
+

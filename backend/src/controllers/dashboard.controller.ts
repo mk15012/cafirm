@@ -29,8 +29,23 @@ export async function getRecentTasks(req: Request, res: Response) {
     let accessibleFirmIds: number[] = [];
     
     if (user.role === 'CA') {
-      const allFirms = await prisma.firm.findMany({ select: { id: true } });
-      accessibleFirmIds = allFirms.map(f => f.id);
+      // CA only sees firms created by non-INDIVIDUAL users (their team)
+      const teamFirms = await prisma.firm.findMany({ 
+        where: {
+          createdBy: {
+            role: { not: 'INDIVIDUAL' }
+          }
+        },
+        select: { id: true } 
+      });
+      accessibleFirmIds = teamFirms.map(f => f.id);
+    } else if (user.role === 'INDIVIDUAL') {
+      // INDIVIDUAL users see only firms they created (their personal firm)
+      const userFirms = await prisma.firm.findMany({
+        where: { createdById: user.userId },
+        select: { id: true },
+      });
+      accessibleFirmIds = userFirms.map(f => f.id);
     } else if (user.role === 'MANAGER') {
       const teamUserIds = await getTeamUserIds(user.userId);
       const mappings = await prisma.userFirmMapping.findMany({
@@ -86,8 +101,23 @@ export async function getUpcomingDeadlines(req: Request, res: Response) {
     let accessibleFirmIds: number[] = [];
     
     if (user.role === 'CA') {
-      const allFirms = await prisma.firm.findMany({ select: { id: true } });
-      accessibleFirmIds = allFirms.map(f => f.id);
+      // CA only sees firms created by non-INDIVIDUAL users (their team)
+      const teamFirms = await prisma.firm.findMany({ 
+        where: {
+          createdBy: {
+            role: { not: 'INDIVIDUAL' }
+          }
+        },
+        select: { id: true } 
+      });
+      accessibleFirmIds = teamFirms.map(f => f.id);
+    } else if (user.role === 'INDIVIDUAL') {
+      // INDIVIDUAL users see only firms they created (their personal firm)
+      const userFirms = await prisma.firm.findMany({
+        where: { createdById: user.userId },
+        select: { id: true },
+      });
+      accessibleFirmIds = userFirms.map(f => f.id);
     } else if (user.role === 'MANAGER') {
       const teamUserIds = await getTeamUserIds(user.userId);
       const mappings = await prisma.userFirmMapping.findMany({
@@ -166,12 +196,37 @@ export async function getTodaysBirthdays(req: Request, res: Response) {
     const currentMonth = today.getMonth() + 1; // 1-indexed
     const currentDay = today.getDate();
 
-    // Get all active users with birthdays and their reporting structure
-    // Note: Using 'as any' because TypeScript may not have picked up the new birthday field yet
+    // INDIVIDUAL users only see their own birthday
+    if (user.role === 'INDIVIDUAL') {
+      const individualUser = await prisma.user.findUnique({
+        where: { id: user.userId },
+        select: { id: true, name: true, role: true, birthday: true } as any,
+      });
+      
+      let isMyBirthday = false;
+      if ((individualUser as any)?.birthday) {
+        const bday = new Date((individualUser as any).birthday);
+        isMyBirthday = bday.getMonth() + 1 === currentMonth && bday.getDate() === currentDay;
+      }
+      
+      return res.json({
+        isMyBirthday,
+        myName: individualUser?.name,
+        teamBirthdays: isMyBirthday ? [{
+          id: individualUser?.id,
+          name: individualUser?.name,
+          role: individualUser?.role,
+          isMe: true,
+        }] : [],
+      });
+    }
+
+    // For CA/MANAGER/STAFF - only get users in their organization (not INDIVIDUAL users)
     const allUsers = await prisma.user.findMany({
       where: {
         status: 'ACTIVE',
         birthday: { not: null },
+        role: { not: 'INDIVIDUAL' }, // Exclude INDIVIDUAL users from team birthdays
       } as any,
       select: {
         id: true,
@@ -197,7 +252,9 @@ export async function getTodaysBirthdays(req: Request, res: Response) {
     let teamBirthdays: typeof birthdayUsers = [];
     
     if (user.role === 'CA') {
-      // CA sees all team members' birthdays (everyone except themselves)
+      // CA sees team members' birthdays (CA, MANAGER, STAFF in their org - not INDIVIDUAL)
+      // For now, CA sees all non-INDIVIDUAL birthdays
+      // TODO: Filter by organization when multi-CA is implemented
       teamBirthdays = birthdayUsers;
     } else if (user.role === 'MANAGER') {
       // Manager sees:

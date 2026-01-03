@@ -50,23 +50,30 @@ export async function getPlans(req: Request, res: Response) {
 
     const plans = dbPlans.map((plan: any) => {
       const features = plan.features ? JSON.parse(plan.features) : {};
+      // Use fallback values if database values are null/undefined
+      const maxClients = plan.maxClients ?? 3;
+      const maxFirmsPerClient = plan.maxFirmsPerClient ?? 2;
+      const maxUsers = plan.maxUsers ?? 1;
+      const maxStorageMB = plan.maxStorageMB ?? 100;
+      const maxCredentials = plan.maxCredentials ?? 5;
+      
       return {
         id: plan.code,
         name: plan.name,
         description: plan.description,
-        monthlyPrice: formatPrice(plan.monthlyPricePaise),
-        yearlyPrice: formatPrice(plan.yearlyPricePaise),
-        monthlyPricePaise: plan.monthlyPricePaise,
-        yearlyPricePaise: plan.yearlyPricePaise,
+        monthlyPrice: formatPrice(plan.monthlyPricePaise || 0),
+        yearlyPrice: formatPrice(plan.yearlyPricePaise || 0),
+        monthlyPricePaise: plan.monthlyPricePaise || 0,
+        yearlyPricePaise: plan.yearlyPricePaise || 0,
         popular: plan.isPopular,
         limits: {
-          clients: plan.maxClients === -1 ? 'Unlimited' : plan.maxClients,
-          firmsPerClient: plan.maxFirmsPerClient === -1 ? 'Unlimited' : plan.maxFirmsPerClient,
-          users: plan.maxUsers === -1 ? 'Unlimited' : plan.maxUsers,
-          storage: plan.maxStorageMB >= 1024
-            ? `${plan.maxStorageMB / 1024} GB`
-            : `${plan.maxStorageMB} MB`,
-          credentials: plan.maxCredentials === -1 ? 'Unlimited' : plan.maxCredentials,
+          clients: maxClients === -1 ? 'Unlimited' : maxClients,
+          firmsPerClient: maxFirmsPerClient === -1 ? 'Unlimited' : maxFirmsPerClient,
+          users: maxUsers === -1 ? 'Unlimited' : maxUsers,
+          storage: maxStorageMB >= 1024
+            ? `${maxStorageMB / 1024} GB`
+            : `${maxStorageMB} MB`,
+          credentials: maxCredentials === -1 ? 'Unlimited' : maxCredentials,
         },
         features,
       };

@@ -78,11 +78,12 @@ export default function ProfilePage() {
       // Use /auth/me endpoint which allows any authenticated user to view their own profile
       const response = await api.get('/auth/me');
       setProfile(response.data);
-      // Initialize edit data
+      // Initialize edit data with DD-MM-YYYY format for birthday
+      const birthdayISO = response.data.birthday ? response.data.birthday.split('T')[0] : '';
       setEditData({
         name: response.data.name || '',
         phone: response.data.phone || '',
-        birthday: response.data.birthday ? response.data.birthday.split('T')[0] : '',
+        birthday: birthdayISO ? formatDateDDMMYYYY(birthdayISO) : '',
       });
     } catch (error: any) {
       console.error('Failed to load profile:', error);
@@ -102,7 +103,12 @@ export default function ProfilePage() {
 
     try {
       setSavingProfile(true);
-      const response = await api.put('/auth/profile', editData);
+      // Convert birthday from DD-MM-YYYY to YYYY-MM-DD for API
+      const profileData = {
+        ...editData,
+        birthday: convertToISODate(editData.birthday),
+      };
+      const response = await api.put('/auth/profile', profileData);
       setProfile(response.data);
       toast.success('Profile updated successfully!');
       setActiveTab('profile');
@@ -128,6 +134,33 @@ export default function ProfilePage() {
       month: 'long',
       day: 'numeric',
     });
+  };
+
+  // Format date as DD-MM-YYYY for display/input
+  // Parse directly from YYYY-MM-DD to avoid timezone issues
+  const formatDateDDMMYYYY = (dateString: string) => {
+    if (!dateString) return '';
+    // If already in DD-MM-YYYY format, return as is
+    if (/^\d{2}-\d{2}-\d{4}$/.test(dateString)) return dateString;
+    // Parse YYYY-MM-DD format
+    const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    return dateString;
+  };
+
+  // Convert DD-MM-YYYY to YYYY-MM-DD for API
+  const convertToISODate = (ddmmyyyy: string): string => {
+    if (!ddmmyyyy) return '';
+    // Check if already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ddmmyyyy)) return ddmmyyyy;
+    // Convert DD-MM-YYYY to YYYY-MM-DD
+    const parts = ddmmyyyy.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return ddmmyyyy;
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -251,10 +284,11 @@ export default function ProfilePage() {
               </button>
               <button
                 onClick={() => {
+                  const birthdayISO = profile?.birthday ? profile.birthday.split('T')[0] : '';
                   setEditData({ 
                     name: profile?.name || '', 
                     phone: profile?.phone || '',
-                    birthday: profile?.birthday ? profile.birthday.split('T')[0] : '',
+                    birthday: birthdayISO ? formatDateDDMMYYYY(birthdayISO) : '',
                   });
                   setActiveTab('edit');
                 }}
@@ -413,12 +447,13 @@ export default function ProfilePage() {
                       </span>
                     </label>
                     <input
-                      type="date"
+                      type="text"
+                      placeholder="DD-MM-YYYY (e.g., 15-01-1990)"
                       value={editData.birthday}
                       onChange={(e) => setEditData({ ...editData, birthday: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Add your birthday to receive greetings from the team! 🎂</p>
+                    <p className="text-xs text-gray-500 mt-1">Add your birthday to receive greetings from the team! Format: DD-MM-YYYY 🎂</p>
                   </div>
 
                   <div className="flex gap-3 pt-4">

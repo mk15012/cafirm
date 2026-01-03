@@ -5,7 +5,7 @@ interface User {
   id: number;
   name: string;
   email: string;
-  role: 'CA' | 'MANAGER' | 'STAFF';
+  role: 'CA' | 'MANAGER' | 'STAFF' | 'INDIVIDUAL';
 }
 
 interface AuthState {
@@ -14,7 +14,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (name: string, email: string, password: string, phone?: string) => Promise<void>;
+  signup: (name: string, email: string, password: string, phone?: string, role?: 'CA' | 'INDIVIDUAL') => Promise<void>;
   logout: () => void;
   setUser: (user: User, token: string) => void;
   initializeAuth: () => Promise<void>;
@@ -34,8 +34,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user, token, isAuthenticated: true, isLoading: false });
   },
   
-  signup: async (name: string, email: string, password: string, phone?: string) => {
-    const response = await api.post('/auth/signup', { name, email, password, phone });
+  signup: async (name: string, email: string, password: string, phone?: string, role?: 'CA' | 'INDIVIDUAL') => {
+    const response = await api.post('/auth/signup', { name, email, password, phone, role: role || 'CA' });
     const { token, user } = response.data;
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));

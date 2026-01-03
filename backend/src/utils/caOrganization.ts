@@ -3,6 +3,7 @@ import { prisma } from './prisma';
 /**
  * Gets the root CA user ID for any user
  * For CA users, returns their own ID
+ * For INDIVIDUAL users, returns their own ID (they are their own organization)
  * For MANAGER/STAFF users, traverses up the reporting hierarchy to find the CA
  */
 export async function getRootCAId(userId: number): Promise<number | null> {
@@ -16,8 +17,9 @@ export async function getRootCAId(userId: number): Promise<number | null> {
       return null;
     }
 
-    // If user is CA, return their ID
-    if (user.role === 'CA') {
+    // If user is CA or INDIVIDUAL, return their own ID
+    // INDIVIDUAL users are their own "organization"
+    if (user.role === 'CA' || user.role === 'INDIVIDUAL') {
       return user.id;
     }
 

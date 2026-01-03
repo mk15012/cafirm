@@ -21,8 +21,9 @@ export async function getDashboardMetrics(userId: number, userRole: UserRole): P
   // Get accessible firm IDs based on role
   let accessibleFirmIds: number[] = [];
   
-  if (userRole === 'CA') {
+  if (userRole === 'CA' || userRole === 'INDIVIDUAL') {
     // CA sees all firms created by anyone in their organization
+    // INDIVIDUAL users see only firms they created (their personal firm)
     const orgFirms = await prisma.firm.findMany({
       where: { createdById: { in: orgUserIds } },
       select: { id: true },
@@ -53,18 +54,24 @@ export async function getDashboardMetrics(userId: number, userRole: UserRole): P
   const orgFirmIds = new Set(orgFirms.map(f => f.id));
   accessibleFirmIds = accessibleFirmIds.filter(id => orgFirmIds.has(id));
 
-  // Active Tasks
+  // Active Tasks / Reminders
+  // For INDIVIDUAL users, count all non-completed tasks as "reminders"
+  // For other roles, count only IN_PROGRESS tasks
   const activeTasks = await prisma.task.count({
     where: {
       firmId: { in: accessibleFirmIds },
-      status: 'IN_PROGRESS',
+      status: userRole === 'INDIVIDUAL' 
+        ? { notIn: ['COMPLETED', 'ERROR'] }
+        : 'IN_PROGRESS',
     },
   });
 
   const activeTasksLastMonth = await prisma.task.count({
     where: {
       firmId: { in: accessibleFirmIds },
-      status: 'IN_PROGRESS',
+      status: userRole === 'INDIVIDUAL' 
+        ? { notIn: ['COMPLETED', 'ERROR'] }
+        : 'IN_PROGRESS',
       createdAt: { lte: endOfLastMonth },
     },
   });
