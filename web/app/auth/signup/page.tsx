@@ -441,7 +441,7 @@ export default function SignupPage() {
           {/* Footer */}
           <div className="mt-8 text-center">
             <p className="text-sm text-slate-500">
-              © {new Date().getFullYear()} CA Firm Pro. All rights reserved.
+              © 2024 CA Firm Pro. All rights reserved.
             </p>
             <p className="text-xs text-slate-400 mt-1">
               {userType === 'individual' 

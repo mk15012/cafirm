@@ -1,22 +1,33 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Linking, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/lib/store';
 import api, { getApiBaseUrl } from '@/lib/api';
 import { format } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as DocumentPicker from 'expo-document-picker';
+import { Picker } from '@react-native-picker/picker';
 
 interface Document {
   id: number;
   filename: string;
   originalName: string;
+  fileName?: string;
   mimeType: string;
   size: number;
+  fileSize?: number;
   description?: string;
   category?: string;
+  documentType?: string;
   createdAt: string;
-  firm?: { name: string; client: { name: string } };
+  firm?: { id: number; name: string; client: { name: string } };
+}
+
+interface Firm {
+  id: number;
+  name: string;
+  client: { id: number; name: string };
 }
 
 export default function DocumentsTabScreen() {
@@ -25,12 +36,19 @@ export default function DocumentsTabScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [firms, setFirms] = useState<Firm[]>([]);
+  const [selectedFirmId, setSelectedFirmId] = useState<number | null>(null);
+  const [selectedDocType, setSelectedDocType] = useState('OTHER');
+  const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
 
   const isIndividual = user?.role === 'INDIVIDUAL';
 
   useEffect(() => {
     if (isAuthenticated) {
       loadDocuments();
+      loadFirms();
     }
   }, [isAuthenticated]);
 
@@ -48,9 +66,78 @@ export default function DocumentsTabScreen() {
     }
   };
 
+  const loadFirms = async () => {
+    try {
+      const response = await api.get('/firms');
+      setFirms(response.data || []);
+      // For INDIVIDUAL users, auto-select their first firm
+      if (isIndividual && response.data?.length > 0) {
+        setSelectedFirmId(response.data[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to load firms:', error);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     loadDocuments();
+  };
+
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedFile(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to pick document');
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !selectedFirmId) {
+      Alert.alert('Error', 'Please select a file and firm');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      
+      const formData = new FormData();
+      formData.append('file', {
+        uri: selectedFile.uri,
+        name: selectedFile.name,
+        type: selectedFile.mimeType || 'application/octet-stream',
+      } as any);
+      formData.append('firmId', selectedFirmId.toString());
+      formData.append('documentType', selectedDocType);
+
+      await api.post('/documents', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      Alert.alert('Success', 'Document uploaded successfully!');
+      setShowUploadModal(false);
+      setSelectedFile(null);
+      setSelectedDocType('OTHER');
+      if (!isIndividual) {
+        setSelectedFirmId(null);
+      }
+      loadDocuments();
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Error', error.response?.data?.error || 'Failed to upload document');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleDownload = async (doc: Document) => {
@@ -100,8 +187,18 @@ export default function DocumentsTabScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{isIndividual ? 'My Documents' : 'Documents'}</Text>
-        <Text style={styles.headerSubtitle}>{filteredDocuments.length} files</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.headerTitle}>{isIndividual ? 'My Documents' : 'Documents'}</Text>
+            <Text style={styles.headerSubtitle}>{filteredDocuments.length} files</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.uploadButton}
+            onPress={() => setShowUploadModal(true)}
+          >
+            <Text style={styles.uploadButtonText}>+ Upload</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search */}
@@ -125,8 +222,16 @@ export default function DocumentsTabScreen() {
             <Text style={styles.emptyIcon}>📄</Text>
             <Text style={styles.emptyTitle}>No Documents Found</Text>
             <Text style={styles.emptyText}>
-              {searchQuery ? 'Try a different search term' : 'Your documents will appear here'}
+              {searchQuery ? 'Try a different search term' : 'Upload your first document to get started'}
             </Text>
+            {!searchQuery && (
+              <TouchableOpacity
+                style={styles.emptyUploadButton}
+                onPress={() => setShowUploadModal(true)}
+              >
+                <Text style={styles.emptyUploadButtonText}>+ Upload Document</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           filteredDocuments.map((doc) => (
@@ -165,6 +270,110 @@ export default function DocumentsTabScreen() {
         )}
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* Upload Modal */}
+      <Modal
+        visible={showUploadModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowUploadModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Upload Document</Text>
+              <TouchableOpacity onPress={() => {
+                setShowUploadModal(false);
+                setSelectedFile(null);
+              }}>
+                <Text style={styles.modalCloseButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* File Picker */}
+            <TouchableOpacity style={styles.filePickerButton} onPress={pickDocument}>
+              <Text style={styles.filePickerIcon}>📁</Text>
+              <Text style={styles.filePickerText}>
+                {selectedFile ? selectedFile.name : 'Tap to select a file'}
+              </Text>
+            </TouchableOpacity>
+
+            {selectedFile && (
+              <Text style={styles.selectedFileInfo}>
+                Size: {formatFileSize(selectedFile.size || 0)}
+              </Text>
+            )}
+
+            {/* Firm Picker - Hidden for INDIVIDUAL users */}
+            {!isIndividual && (
+              <View style={styles.pickerContainer}>
+                <Text style={styles.pickerLabel}>Select Firm *</Text>
+                <View style={styles.pickerWrapper}>
+                  <Picker
+                    selectedValue={selectedFirmId}
+                    onValueChange={(value) => setSelectedFirmId(value)}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Select a firm..." value={null} />
+                    {firms.map((firm) => (
+                      <Picker.Item
+                        key={firm.id}
+                        label={`${firm.name} (${firm.client.name})`}
+                        value={firm.id}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            )}
+
+            {/* Document Type Picker */}
+            <View style={styles.pickerContainer}>
+              <Text style={styles.pickerLabel}>Document Type</Text>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={selectedDocType}
+                  onValueChange={(value) => setSelectedDocType(value)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="ITR" value="ITR" />
+                  <Picker.Item label="GST" value="GST" />
+                  <Picker.Item label="TDS" value="TDS" />
+                  <Picker.Item label="ROC" value="ROC" />
+                  <Picker.Item label="Invoice" value="INVOICE" />
+                  <Picker.Item label="Other" value="OTHER" />
+                </Picker>
+              </View>
+            </View>
+
+            {/* Upload Button */}
+            <TouchableOpacity
+              style={[
+                styles.uploadSubmitButton,
+                (!selectedFile || !selectedFirmId || uploading) && styles.uploadSubmitButtonDisabled
+              ]}
+              onPress={handleUpload}
+              disabled={!selectedFile || !selectedFirmId || uploading}
+            >
+              {uploading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={styles.uploadSubmitButtonText}>Upload Document</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                setShowUploadModal(false);
+                setSelectedFile(null);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -180,8 +389,24 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 12,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   headerTitle: { fontSize: 24, fontWeight: '700', color: '#ffffff' },
   headerSubtitle: { fontSize: 14, color: '#94a3b8', marginTop: 4 },
+  uploadButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  uploadButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
   searchContainer: {
     backgroundColor: '#0f172a',
     paddingHorizontal: 16,
@@ -203,6 +428,18 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: 16 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: '#0f172a', marginBottom: 8 },
   emptyText: { fontSize: 14, color: '#64748b', textAlign: 'center' },
+  emptyUploadButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  emptyUploadButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 15,
+  },
   documentCard: {
     backgroundColor: 'white',
     padding: 16,
@@ -263,6 +500,105 @@ const styles = StyleSheet.create({
   downloadIcon: {
     fontSize: 18,
   },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  modalCloseButton: {
+    fontSize: 24,
+    color: '#64748b',
+    padding: 4,
+  },
+  filePickerButton: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
+    marginBottom: 12,
+  },
+  filePickerIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  filePickerText: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  selectedFileInfo: {
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  pickerContainer: {
+    marginBottom: 16,
+  },
+  pickerLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  pickerWrapper: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+  },
+  uploadSubmitButton: {
+    backgroundColor: '#0ea5e9',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  uploadSubmitButtonDisabled: {
+    backgroundColor: '#94a3b8',
+  },
+  uploadSubmitButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  cancelButtonText: {
+    color: '#64748b',
+    fontSize: 16,
+    fontWeight: '500',
+  },
 });
+
 
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -26,6 +26,7 @@ export default function TasksTabScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [generatingReminders, setGeneratingReminders] = useState(false);
 
   const isIndividual = user?.role === 'INDIVIDUAL';
 
@@ -54,6 +55,21 @@ export default function TasksTabScreen() {
     loadTasks();
   };
 
+  const generateReminders = async (forNextYear = false) => {
+    try {
+      setGeneratingReminders(true);
+      const endpoint = forNextYear ? '/tasks/generate-next-year-tasks' : '/tasks/generate-tax-tasks';
+      const response = await api.post(endpoint);
+      Alert.alert('Success', response.data.message || 'Tax reminders generated successfully!');
+      loadTasks();
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Failed to generate reminders';
+      Alert.alert('Error', errorMsg);
+    } finally {
+      setGeneratingReminders(false);
+    }
+  };
+
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || task.status === statusFilter;
@@ -77,8 +93,36 @@ export default function TasksTabScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{isIndividual ? 'My Reminders' : 'Tasks'}</Text>
-        <Text style={styles.headerSubtitle}>{filteredTasks.length} {isIndividual ? 'reminders' : 'tasks'}</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.headerTitle}>{isIndividual ? 'My Reminders' : 'Tasks'}</Text>
+            <Text style={styles.headerSubtitle}>
+              {isIndividual 
+                ? 'Tax deadlines & compliance reminders' 
+                : `${filteredTasks.length} tasks`}
+            </Text>
+          </View>
+          {isIndividual ? (
+            <TouchableOpacity
+              style={[styles.generateButton, generatingReminders && styles.generateButtonDisabled]}
+              onPress={() => generateReminders(false)}
+              disabled={generatingReminders}
+            >
+              {generatingReminders ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.generateButtonText}>✨ Generate</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => router.push('/tasks/add')}
+            >
+              <Text style={styles.addButtonText}>+ Add</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Search */}
@@ -92,28 +136,30 @@ export default function TasksTabScreen() {
         />
       </View>
 
-      {/* Status Filter */}
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {statusOptions.map((status) => (
-            <TouchableOpacity
-              key={status}
-              style={[
-                styles.filterButton,
-                statusFilter === status && styles.filterButtonActive
-              ]}
-              onPress={() => setStatusFilter(status)}
-            >
-              <Text style={[
-                styles.filterButtonText,
-                statusFilter === status && styles.filterButtonTextActive
-              ]}>
-                {status === 'ALL' ? 'All' : status.replace('_', ' ')}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+      {/* Status Filter - Only for CA/MANAGER/STAFF */}
+      {!isIndividual && (
+        <View style={styles.filterContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {statusOptions.map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[
+                  styles.filterButton,
+                  statusFilter === status && styles.filterButtonActive
+                ]}
+                onPress={() => setStatusFilter(status)}
+              >
+                <Text style={[
+                  styles.filterButtonText,
+                  statusFilter === status && styles.filterButtonTextActive
+                ]}>
+                  {status === 'ALL' ? 'All' : status.replace('_', ' ')}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       <ScrollView
         style={styles.container}
@@ -122,13 +168,46 @@ export default function TasksTabScreen() {
       >
         {filteredTasks.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>No {isIndividual ? 'Reminders' : 'Tasks'} Found</Text>
-            <Text style={styles.emptyText}>
-              {searchQuery || statusFilter !== 'ALL' 
-                ? 'Try adjusting your filters' 
-                : isIndividual ? 'Your reminders will appear here' : 'No tasks available'}
-            </Text>
+            {isIndividual && !searchQuery && statusFilter === 'ALL' ? (
+              <>
+                <Text style={styles.emptyIcon}>🔔</Text>
+                <Text style={styles.emptyTitle}>No Reminders Yet</Text>
+                <Text style={styles.emptyText}>
+                  Generate your tax deadline reminders for the current financial year
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  We'll create reminders for ITR filing, advance tax payments, Form 16 collection, and other important deadlines.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.generateMainButton, generatingReminders && styles.generateButtonDisabled]}
+                  onPress={() => generateReminders(false)}
+                  disabled={generatingReminders}
+                >
+                  {generatingReminders ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.generateMainButtonText}>✨ Generate Current FY Reminders</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.generateSecondaryButton, generatingReminders && styles.generateButtonDisabled]}
+                  onPress={() => generateReminders(true)}
+                  disabled={generatingReminders}
+                >
+                  <Text style={styles.generateSecondaryButtonText}>📅 Generate Next FY Reminders</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyIcon}>📋</Text>
+                <Text style={styles.emptyTitle}>No {isIndividual ? 'Reminders' : 'Tasks'} Found</Text>
+                <Text style={styles.emptyText}>
+                  {searchQuery || statusFilter !== 'ALL' 
+                    ? 'Try adjusting your filters' 
+                    : 'No tasks available'}
+                </Text>
+              </>
+            )}
           </View>
         ) : (
           filteredTasks.map((task) => (
@@ -204,8 +283,40 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 12,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   headerTitle: { fontSize: 24, fontWeight: '700', color: '#ffffff' },
   headerSubtitle: { fontSize: 14, color: '#94a3b8', marginTop: 4 },
+  generateButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  generateButtonDisabled: {
+    opacity: 0.6,
+  },
+  generateButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  addButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  addButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
   searchContainer: {
     backgroundColor: '#0f172a',
     paddingHorizontal: 16,
@@ -251,7 +362,45 @@ const styles = StyleSheet.create({
   },
   emptyIcon: { fontSize: 48, marginBottom: 16 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: '#0f172a', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#64748b', textAlign: 'center' },
+  emptyText: { fontSize: 14, color: '#64748b', textAlign: 'center', paddingHorizontal: 20 },
+  emptySubtext: { 
+    fontSize: 12, 
+    color: '#94a3b8', 
+    textAlign: 'center', 
+    paddingHorizontal: 30,
+    marginTop: 8,
+    marginBottom: 24,
+    lineHeight: 18,
+  },
+  generateMainButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginBottom: 12,
+    minWidth: 240,
+    alignItems: 'center',
+  },
+  generateMainButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  generateSecondaryButton: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    minWidth: 240,
+    alignItems: 'center',
+  },
+  generateSecondaryButtonText: {
+    color: '#64748b',
+    fontWeight: '600',
+    fontSize: 15,
+  },
   taskCard: {
     backgroundColor: 'white',
     padding: 16,
@@ -291,5 +440,6 @@ const styles = StyleSheet.create({
   statusBadgeText: { color: 'white', fontSize: 10, fontWeight: '600' },
   assignedTo: { fontSize: 12, color: '#64748b' },
 });
+
 
 

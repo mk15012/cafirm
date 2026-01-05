@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
@@ -48,6 +48,7 @@ export default function ComplianceScreen() {
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<ComplianceItem[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeView, setActiveView] = useState<'upcoming' | 'calendar'>('upcoming');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const isCA = user?.role === 'CA';
 
@@ -256,15 +257,19 @@ export default function ComplianceScreen() {
               <TouchableOpacity onPress={goToPrevMonth} style={styles.navButton}>
                 <Text style={styles.navButtonText}>←</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={goToToday}>
+              <View style={styles.monthCenterSection}>
                 <Text style={styles.monthTitle}>
                   {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
                 </Text>
-              </TouchableOpacity>
+                <TouchableOpacity onPress={goToToday} style={styles.todayButton}>
+                  <Text style={styles.todayButtonText}>Today</Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity onPress={goToNextMonth} style={styles.navButton}>
                 <Text style={styles.navButtonText}>→</Text>
               </TouchableOpacity>
             </View>
+            
 
             {/* Day Headers */}
             <View style={styles.dayHeaders}>
@@ -278,18 +283,22 @@ export default function ComplianceScreen() {
             {/* Calendar Grid */}
             <View style={styles.calendarGrid}>
               {calendarDays.map((cell, index) => (
-                <View
+                <TouchableOpacity
                   key={index}
                   style={[
                     styles.calendarCell,
-                    isToday(cell.date) && styles.calendarCellToday,
+                    cell.day ? (isToday(cell.date) ? styles.calendarCellToday : null) : null,
+                    cell.date && selectedDate === cell.date ? styles.calendarCellSelected : null,
                   ]}
+                  onPress={() => cell.date && setSelectedDate(selectedDate === cell.date ? null : cell.date)}
+                  disabled={!cell.day}
                 >
                   {cell.day && (
                     <>
                       <Text style={[
                         styles.calendarDay,
-                        isToday(cell.date) && styles.calendarDayToday,
+                        isToday(cell.date) ? styles.calendarDayToday : null,
+                        cell.date && selectedDate === cell.date ? styles.calendarDaySelected : null,
                       ]}>
                         {cell.day}
                       </Text>
@@ -311,12 +320,50 @@ export default function ComplianceScreen() {
                       )}
                     </>
                   )}
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
 
+            {/* Selected Date Details */}
+            {selectedDate && (
+              <View style={styles.selectedDateCard}>
+                <View style={styles.selectedDateHeader}>
+                  <Text style={styles.selectedDateTitle}>
+                    📅 {format(new Date(selectedDate), 'EEEE, MMM dd, yyyy')}
+                  </Text>
+                  <TouchableOpacity onPress={() => setSelectedDate(null)}>
+                    <Text style={styles.closeButton}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                {calendarData?.groupedByDate[selectedDate] && calendarData.groupedByDate[selectedDate].length > 0 ? (
+                  calendarData.groupedByDate[selectedDate].map((item, index) => {
+                    const categoryColor = CATEGORY_COLORS[item.category] || { bg: '#f1f5f9', text: '#64748b' };
+                    return (
+                      <View key={index} style={[styles.selectedDateItem, { borderLeftColor: categoryColor.text }]}>
+                        <View style={styles.selectedDateItemHeader}>
+                          <View style={[styles.categoryBadge, { backgroundColor: categoryColor.bg }]}>
+                            <Text style={[styles.categoryBadgeText, { color: categoryColor.text }]}>
+                              {item.category}
+                            </Text>
+                          </View>
+                          <Text style={styles.selectedDateFrequency}>{item.frequency}</Text>
+                        </View>
+                        <Text style={styles.selectedDateItemName}>{item.name}</Text>
+                        <Text style={styles.selectedDateItemCode}>{item.code}</Text>
+                        <Text style={styles.selectedDateItemFirm}>🏢 {item.clientName} → {item.firmName}</Text>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={styles.noDeadlinesForDate}>
+                    <Text style={styles.noDeadlinesText}>✅ No deadlines on this date</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Month's Deadlines List */}
-            {calendarData?.items && calendarData.items.length > 0 && (
+            {calendarData?.items && calendarData.items.length > 0 && !selectedDate && (
               <View style={styles.monthDeadlines}>
                 <Text style={styles.monthDeadlinesTitle}>
                   📋 Deadlines in {MONTHS[currentDate.getMonth()]}
@@ -472,6 +519,21 @@ const styles = StyleSheet.create({
   navButton: { padding: 8 },
   navButtonText: { fontSize: 20, color: '#0ea5e9', fontWeight: '600' },
   monthTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
+  monthCenterSection: {
+    alignItems: 'center',
+  },
+  todayButton: {
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: '#dbeafe',
+    borderRadius: 12,
+  },
+  todayButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0ea5e9',
+  },
   
   dayHeaders: { 
     flexDirection: 'row', 
@@ -501,11 +563,82 @@ const styles = StyleSheet.create({
     backgroundColor: '#dbeafe', 
     borderRadius: 8 
   },
+  calendarCellSelected: {
+    backgroundColor: '#0ea5e9',
+    borderRadius: 8,
+  },
   calendarDay: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
   calendarDayToday: { color: '#0ea5e9', fontWeight: '700' },
+  calendarDaySelected: { color: '#ffffff', fontWeight: '700' },
   calendarDots: { flexDirection: 'row', gap: 2, marginTop: 2 },
   calendarDot: { width: 4, height: 4, borderRadius: 2 },
   moreText: { fontSize: 8, color: '#94a3b8', marginTop: 1 },
+
+  // Selected Date Card
+  selectedDateCard: {
+    backgroundColor: '#ffffff',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#0ea5e9',
+  },
+  selectedDateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  selectedDateTitle: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: '#0f172a' 
+  },
+  closeButton: {
+    fontSize: 18,
+    color: '#64748b',
+    padding: 4,
+  },
+  selectedDateItem: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+  },
+  selectedDateItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  selectedDateFrequency: {
+    fontSize: 11,
+    color: '#64748b',
+  },
+  selectedDateItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 2,
+  },
+  selectedDateItemCode: {
+    fontSize: 11,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  selectedDateItemFirm: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  noDeadlinesForDate: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  noDeadlinesText: {
+    fontSize: 14,
+    color: '#64748b',
+  },
   
   monthDeadlines: { 
     backgroundColor: '#ffffff', 
@@ -552,6 +685,7 @@ const styles = StyleSheet.create({
   legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
   legendText: { fontSize: 11, color: '#64748b' },
 });
+
 
 
 

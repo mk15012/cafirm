@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes';
+import phoneAuthRoutes from './phoneAuth.routes';
 import dashboardRoutes from './dashboard.routes';
 import clientsRoutes from './clients.routes';
 import firmsRoutes from './firms.routes';
@@ -20,6 +21,7 @@ import servicesRoutes from './services.routes';
 const router = Router();
 
 router.use('/auth', authRoutes);
+router.use('/auth/phone', phoneAuthRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/clients', clientsRoutes);
 router.use('/firms', firmsRoutes);

@@ -302,12 +302,13 @@
 
 | Feature | Free (Starter) | Basic | Professional | Enterprise |
 |---------|:--------------:|:-----:|:------------:|:----------:|
-| **Monthly Price** | ₹0 | ₹499 | ₹1,499 | ₹4,999 |
-| **Yearly Price** | ₹0 | ₹4,999 | ₹14,999 | ₹49,999 |
-| **Clients** | 50 | 200 | 1,000 | Unlimited |
-| **Users** | 2 | 10 | 50 | Unlimited |
-| **Storage** | 1 GB | 10 GB | 100 GB | Unlimited |
-| **Credentials** | 100 | 500 | 5,000 | Unlimited |
+| **Monthly Price** | ₹0 | ₹499 | ₹999 | ₹2,499 |
+| **Yearly Price** | ₹0 | ₹4,999 | ₹9,999 | ₹24,999 |
+| **Clients** | 10 | 50 | 200 | Unlimited |
+| **Firms** | 10 | 50 | 200 | Unlimited |
+| **Users** | 2 | 5 | 15 | Unlimited |
+| **Storage** | 512 MB | 5 GB | 20 GB | 50 GB |
+| **Credentials** | 20 | 100 | 400 | Unlimited |
 | **Tax Calculator** | ✅ | ✅ | ✅ | ✅ |
 | **Document Mgmt** | ✅ | ✅ | ✅ | ✅ |
 | **Reports** | Basic | ✅ | ✅ | ✅ |

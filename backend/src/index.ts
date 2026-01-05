@@ -5,8 +5,16 @@ import dotenv from 'dotenv';
 import routes from './routes';
 import { logActivityMiddleware } from './middleware/activityLog';
 import { apiLimiter } from './middleware/rateLimiter';
+import { initializeFirebase } from './utils/firebase';
 
 dotenv.config();
+
+// Initialize Firebase Admin SDK for phone auth
+try {
+  initializeFirebase();
+} catch (error) {
+  console.warn('⚠️ Firebase initialization failed. Phone auth will not work.');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;

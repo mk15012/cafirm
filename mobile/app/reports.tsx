@@ -4,31 +4,57 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
+import { format, parseISO } from 'date-fns';
 
 const { width } = Dimensions.get('window');
 
 interface RevenueData {
-  monthlyRevenue: { month: string; revenue: number }[];
-  totalRevenue: number;
-  averageMonthly: number;
-  paidInvoices: number;
-  unpaidAmount: number;
+  summary: {
+    totalRevenue: number;
+    paidRevenue: number;
+    pendingRevenue: number;
+    currentMonthRevenue: number;
+    monthlyGrowth: number;
+    invoiceCount: number;
+    paidCount: number;
+  };
+  monthlyData: Array<{
+    month: string;
+    total: number;
+    paid: number;
+    pending: number;
+  }>;
 }
 
 interface TaskData {
-  tasksByStatus: { status: string; count: number }[];
-  tasksByPriority: { priority: string; count: number }[];
-  completionRate: number;
-  overdueCount: number;
-  totalTasks: number;
+  summary: {
+    totalTasks: number;
+    completedTasks: number;
+    pendingTasks: number;
+    overdueTasks: number;
+    completionRate: number;
+  };
+  statusDistribution: Array<{ status: string; count: number }>;
+  priorityDistribution: Array<{ priority: string; count: number }>;
+  monthlyData: Array<{ month: string; created: number; completed: number }>;
 }
 
 interface ClientData {
-  clientGrowth: { month: string; count: number }[];
-  totalClients: number;
-  activeClients: number;
-  totalFirms: number;
-  clientRevenue: { clientName: string; revenue: number }[];
+  summary: {
+    totalClients: number;
+    totalFirms: number;
+    activeClients: number;
+    avgFirmsPerClient: number;
+  };
+  monthlyGrowth: Array<{ month: string; newClients: number; total: number }>;
+  topClients: Array<{
+    id: number;
+    name: string;
+    firms: number;
+    totalRevenue: number;
+    paidRevenue: number;
+    tasks: number;
+  }>;
 }
 
 export default function ReportsScreen() {
@@ -112,6 +138,25 @@ export default function ReportsScreen() {
     return colors[priority] || '#6b7280';
   };
 
+  // Format month string (handles "2026-01", "January", "Jan", etc.)
+  const formatMonth = (monthStr: string): string => {
+    if (!monthStr) return '';
+    
+    // If it's a date format like "2026-01" or "2026-01-01"
+    if (monthStr.includes('-')) {
+      try {
+        // Pad to full date if needed
+        const dateStr = monthStr.length <= 7 ? `${monthStr}-01` : monthStr;
+        return format(parseISO(dateStr), 'MMM');
+      } catch {
+        return monthStr.slice(0, 3);
+      }
+    }
+    
+    // If it's already a month name, just take first 3 chars
+    return monthStr.slice(0, 3);
+  };
+
   const years = [2024, 2025, 2026];
 
   if (loading && !revenueData) {
@@ -182,23 +227,23 @@ export default function ReportsScreen() {
             <View style={styles.statsGrid}>
               <View style={[styles.statCard, { backgroundColor: '#ecfdf5' }]}>
                 <Text style={styles.statIcon}>💵</Text>
-                <Text style={styles.statValue}>{formatCurrency(revenueData.totalRevenue || 0)}</Text>
+                <Text style={styles.statValue}>{formatCurrency(revenueData.summary?.totalRevenue || 0)}</Text>
                 <Text style={styles.statLabel}>Total Revenue</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: '#f0f9ff' }]}>
-                <Text style={styles.statIcon}>📊</Text>
-                <Text style={styles.statValue}>{formatCurrency(revenueData.averageMonthly || 0)}</Text>
-                <Text style={styles.statLabel}>Avg Monthly</Text>
+                <Text style={styles.statIcon}>📈</Text>
+                <Text style={styles.statValue}>{formatCurrency(revenueData.summary?.currentMonthRevenue || 0)}</Text>
+                <Text style={styles.statLabel}>This Month</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: '#dcfce7' }]}>
+                <Text style={styles.statIcon}>✅</Text>
+                <Text style={styles.statValue}>{formatCurrency(revenueData.summary?.paidRevenue || 0)}</Text>
+                <Text style={styles.statLabel}>Paid Revenue</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: '#fef3c7' }]}>
                 <Text style={styles.statIcon}>⏳</Text>
-                <Text style={styles.statValue}>{formatCurrency(revenueData.unpaidAmount || 0)}</Text>
-                <Text style={styles.statLabel}>Unpaid</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: '#ede9fe' }]}>
-                <Text style={styles.statIcon}>✅</Text>
-                <Text style={styles.statValue}>{revenueData.paidInvoices || 0}</Text>
-                <Text style={styles.statLabel}>Paid Invoices</Text>
+                <Text style={styles.statValue}>{formatCurrency(revenueData.summary?.pendingRevenue || 0)}</Text>
+                <Text style={styles.statLabel}>Pending</Text>
               </View>
             </View>
 
@@ -206,16 +251,33 @@ export default function ReportsScreen() {
             <View style={styles.chartCard}>
               <Text style={styles.chartTitle}>Monthly Revenue</Text>
               <View style={styles.barChart}>
-                {(revenueData.monthlyRevenue || []).slice(-6).map((item, index) => {
-                  const maxRevenue = Math.max(...(revenueData.monthlyRevenue || []).map(m => m.revenue || 0), 1);
-                  const height = ((item.revenue || 0) / maxRevenue) * 100;
-                  return (
-                    <View key={index} style={styles.barContainer}>
-                      <View style={[styles.bar, { height: `${Math.max(height, 5)}%`, backgroundColor: '#0ea5e9' }]} />
-                      <Text style={styles.barLabel}>{(item.month || '').slice(0, 3)}</Text>
-                    </View>
-                  );
-                })}
+                {(() => {
+                  // For current year, show months up to current month; for past years show last 6 months
+                  const allData = revenueData.monthlyData || [];
+                  const currentMonth = new Date().getMonth(); // 0-11
+                  const isCurrentYear = selectedYear === new Date().getFullYear();
+                  
+                  let data;
+                  if (isCurrentYear) {
+                    // Show first N months up to current month (at least 6 or current month + 1)
+                    const monthsToShow = Math.max(currentMonth + 1, 6);
+                    data = allData.slice(0, monthsToShow).slice(-6);
+                  } else {
+                    // For past years, show last 6 months
+                    data = allData.slice(-6);
+                  }
+                  
+                  const maxTotal = Math.max(...data.map(m => m.total || 0), 1);
+                  return data.map((item, index) => {
+                    const barHeight = Math.max(((item.total || 0) / maxTotal) * 100, 5);
+                    return (
+                      <View key={index} style={styles.barContainer}>
+                        <View style={[styles.bar, { height: barHeight, backgroundColor: '#0ea5e9' }]} />
+                        <Text style={styles.barLabel}>{formatMonth(item.month || '')}</Text>
+                      </View>
+                    );
+                  });
+                })()}
               </View>
             </View>
           </View>
@@ -228,17 +290,17 @@ export default function ReportsScreen() {
             <View style={styles.statsGrid}>
               <View style={[styles.statCard, { backgroundColor: '#f0f9ff' }]}>
                 <Text style={styles.statIcon}>📋</Text>
-                <Text style={styles.statValue}>{taskData.totalTasks || 0}</Text>
+                <Text style={styles.statValue}>{taskData.summary?.totalTasks || 0}</Text>
                 <Text style={styles.statLabel}>Total Tasks</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: '#ecfdf5' }]}>
                 <Text style={styles.statIcon}>✅</Text>
-                <Text style={styles.statValue}>{taskData.completionRate || 0}%</Text>
+                <Text style={styles.statValue}>{taskData.summary?.completionRate || 0}%</Text>
                 <Text style={styles.statLabel}>Completion</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: '#fef2f2' }]}>
                 <Text style={styles.statIcon}>⚠️</Text>
-                <Text style={styles.statValue}>{taskData.overdueCount || 0}</Text>
+                <Text style={styles.statValue}>{taskData.summary?.overdueTasks || 0}</Text>
                 <Text style={styles.statLabel}>Overdue</Text>
               </View>
             </View>
@@ -246,7 +308,7 @@ export default function ReportsScreen() {
             {/* Status Breakdown */}
             <View style={styles.chartCard}>
               <Text style={styles.chartTitle}>By Status</Text>
-              {(taskData.tasksByStatus || []).map((item, index) => (
+              {(taskData.statusDistribution || []).map((item, index) => (
                 <View key={index} style={styles.horizontalBar}>
                   <View style={styles.horizontalBarLabel}>
                     <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
@@ -257,7 +319,7 @@ export default function ReportsScreen() {
                       style={[
                         styles.horizontalBarFill, 
                         { 
-                          width: `${((item.count || 0) / (taskData.totalTasks || 1)) * 100}%`,
+                          width: `${((item.count || 0) / (taskData.summary?.totalTasks || 1)) * 100}%`,
                           backgroundColor: getStatusColor(item.status)
                         }
                       ]} 
@@ -271,7 +333,7 @@ export default function ReportsScreen() {
             {/* Priority Breakdown */}
             <View style={styles.chartCard}>
               <Text style={styles.chartTitle}>By Priority</Text>
-              {(taskData.tasksByPriority || []).map((item, index) => (
+              {(taskData.priorityDistribution || []).map((item, index) => (
                 <View key={index} style={styles.horizontalBar}>
                   <View style={styles.horizontalBarLabel}>
                     <View style={[styles.statusDot, { backgroundColor: getPriorityColor(item.priority) }]} />
@@ -282,7 +344,7 @@ export default function ReportsScreen() {
                       style={[
                         styles.horizontalBarFill, 
                         { 
-                          width: `${((item.count || 0) / (taskData.totalTasks || 1)) * 100}%`,
+                          width: `${((item.count || 0) / (taskData.summary?.totalTasks || 1)) * 100}%`,
                           backgroundColor: getPriorityColor(item.priority)
                         }
                       ]} 
@@ -302,17 +364,17 @@ export default function ReportsScreen() {
             <View style={styles.statsGrid}>
               <View style={[styles.statCard, { backgroundColor: '#f0f9ff' }]}>
                 <Text style={styles.statIcon}>👥</Text>
-                <Text style={styles.statValue}>{clientData.totalClients || 0}</Text>
+                <Text style={styles.statValue}>{clientData.summary?.totalClients || 0}</Text>
                 <Text style={styles.statLabel}>Total Clients</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: '#ecfdf5' }]}>
                 <Text style={styles.statIcon}>✅</Text>
-                <Text style={styles.statValue}>{clientData.activeClients || 0}</Text>
+                <Text style={styles.statValue}>{clientData.summary?.activeClients || 0}</Text>
                 <Text style={styles.statLabel}>Active</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: '#ede9fe' }]}>
                 <Text style={styles.statIcon}>🏢</Text>
-                <Text style={styles.statValue}>{clientData.totalFirms || 0}</Text>
+                <Text style={styles.statValue}>{clientData.summary?.totalFirms || 0}</Text>
                 <Text style={styles.statLabel}>Firms</Text>
               </View>
             </View>
@@ -321,32 +383,47 @@ export default function ReportsScreen() {
             <View style={styles.chartCard}>
               <Text style={styles.chartTitle}>Client Growth</Text>
               <View style={styles.barChart}>
-                {(clientData.clientGrowth || []).slice(-6).map((item, index) => {
-                  const maxCount = Math.max(...(clientData.clientGrowth || []).map(m => m.count || 0), 1);
-                  const height = ((item.count || 0) / maxCount) * 100;
-                  return (
-                    <View key={index} style={styles.barContainer}>
-                      <View style={[styles.bar, { height: `${Math.max(height, 5)}%`, backgroundColor: '#10b981' }]} />
-                      <Text style={styles.barLabel}>{(item.month || '').slice(0, 3)}</Text>
-                    </View>
-                  );
-                })}
+                {(() => {
+                  // For current year, show months up to current month; for past years show last 6 months
+                  const allData = clientData.monthlyGrowth || [];
+                  const currentMonth = new Date().getMonth(); // 0-11
+                  const isCurrentYear = selectedYear === new Date().getFullYear();
+                  
+                  let data;
+                  if (isCurrentYear) {
+                    const monthsToShow = Math.max(currentMonth + 1, 6);
+                    data = allData.slice(0, monthsToShow).slice(-6);
+                  } else {
+                    data = allData.slice(-6);
+                  }
+                  
+                  const maxCount = Math.max(...data.map(m => m.total || 0), 1);
+                  return data.map((item, index) => {
+                    const barHeight = Math.max(((item.total || 0) / maxCount) * 100, 5);
+                    return (
+                      <View key={index} style={styles.barContainer}>
+                        <View style={[styles.bar, { height: barHeight, backgroundColor: '#10b981' }]} />
+                        <Text style={styles.barLabel}>{formatMonth(item.month || '')}</Text>
+                      </View>
+                    );
+                  });
+                })()}
               </View>
             </View>
 
             {/* Top Clients by Revenue */}
             <View style={styles.chartCard}>
               <Text style={styles.chartTitle}>Top Clients by Revenue</Text>
-              {(clientData.clientRevenue || []).slice(0, 5).map((item, index) => (
+              {(clientData.topClients || []).slice(0, 5).map((item, index) => (
                 <View key={index} style={styles.clientRow}>
                   <View style={styles.clientRank}>
                     <Text style={styles.clientRankText}>{index + 1}</Text>
                   </View>
-                  <Text style={styles.clientName} numberOfLines={1}>{item.clientName || 'Unknown'}</Text>
-                  <Text style={styles.clientRevenue}>{formatCurrency(item.revenue)}</Text>
+                  <Text style={styles.clientName} numberOfLines={1}>{item.name || 'Unknown'}</Text>
+                  <Text style={styles.clientRevenue}>{formatCurrency(item.totalRevenue)}</Text>
                 </View>
               ))}
-              {(clientData.clientRevenue || []).length === 0 && (
+              {(clientData.topClients || []).length === 0 && (
                 <Text style={styles.emptyText}>No revenue data available</Text>
               )}
             </View>
@@ -406,9 +483,9 @@ const styles = StyleSheet.create({
   },
   chartTitle: { fontSize: 16, fontWeight: '600', color: '#0f172a', marginBottom: 16 },
 
-  barChart: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 120 },
-  barContainer: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' },
-  bar: { width: '60%', borderRadius: 4, minHeight: 4 },
+  barChart: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 120, paddingHorizontal: 8 },
+  barContainer: { alignItems: 'center', justifyContent: 'flex-end', height: '100%', paddingHorizontal: 4 },
+  bar: { width: 28, borderRadius: 4, minHeight: 4 },
   barLabel: { fontSize: 10, color: '#64748b', marginTop: 8 },
 
   horizontalBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },

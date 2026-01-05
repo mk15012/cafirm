@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, RefreshControl, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
@@ -56,6 +56,16 @@ export default function TaskDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    priority: 'MEDIUM',
+  });
+
+  const isCA = user?.role === 'CA';
+  const isManager = user?.role === 'MANAGER';
+  const canEdit = isCA || isManager;
 
   useEffect(() => {
     if (isAuthenticated && params.id) {
@@ -77,6 +87,51 @@ export default function TaskDetailScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const openEditForm = () => {
+    if (task) {
+      setEditFormData({
+        title: task.title || '',
+        description: task.description || '',
+        priority: task.priority || 'MEDIUM',
+      });
+      setShowEditForm(true);
+    }
+  };
+
+  const handleEditTask = async () => {
+    try {
+      await api.put(`/tasks/${params.id}`, editFormData);
+      setShowEditForm(false);
+      loadTask();
+      Alert.alert('Success', 'Task updated successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to update task');
+    }
+  };
+
+  const handleDeleteTask = () => {
+    Alert.alert(
+      'Delete Task',
+      `Are you sure you want to delete "${task?.title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/tasks/${params.id}`);
+              Alert.alert('Success', 'Task deleted successfully');
+              router.canGoBack() ? router.back() : router.replace('/(tabs)/tasks');
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.error || 'Failed to delete task');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getStatusLabel = (status: string) => {
@@ -236,7 +291,68 @@ export default function TaskDetailScreen() {
               </View>
             )}
           </View>
+
+          {/* Edit/Delete Buttons */}
+          {canEdit && (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.editButton} onPress={openEditForm}>
+                <Text style={styles.editButtonText}>✏️ Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteTask}>
+                <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
+
+        {/* Edit Task Form */}
+        {showEditForm && canEdit && (
+          <View style={styles.editFormCard}>
+            <Text style={styles.editFormTitle}>Edit Task</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Task Title *"
+              value={editFormData.title}
+              onChangeText={(text) => setEditFormData({ ...editFormData, title: text })}
+            />
+            <TextInput
+              style={[styles.input, { minHeight: 80 }]}
+              placeholder="Description"
+              multiline
+              value={editFormData.description}
+              onChangeText={(text) => setEditFormData({ ...editFormData, description: text })}
+            />
+            <View style={styles.prioritySelector}>
+              <Text style={styles.priorityLabel}>Priority:</Text>
+              {['LOW', 'MEDIUM', 'HIGH'].map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[
+                    styles.priorityOption,
+                    editFormData.priority === p && styles.priorityOptionActive,
+                    { borderColor: getPriorityColor(p) },
+                  ]}
+                  onPress={() => setEditFormData({ ...editFormData, priority: p })}
+                >
+                  <Text style={[
+                    styles.priorityOptionText,
+                    editFormData.priority === p && { color: getPriorityColor(p), fontWeight: '600' },
+                  ]}>
+                    {p}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.editFormButtons}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setShowEditForm(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveButton} onPress={handleEditTask}>
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Status Update */}
         {canUpdateStatus() && (
@@ -446,6 +562,116 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 12,
+    fontWeight: '600',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  editButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  editButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  editFormCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#0ea5e9',
+  },
+  editFormTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 12,
+  },
+  input: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  prioritySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  priorityLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginRight: 8,
+  },
+  priorityOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  priorityOptionActive: {
+    backgroundColor: '#f0f9ff',
+  },
+  priorityOptionText: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  editFormButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  cancelButton: {
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 14,
     fontWeight: '600',
   },
   section: {

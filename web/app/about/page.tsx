@@ -40,10 +40,10 @@ export default function AboutPage() {
   ];
 
   const milestones = [
-    { year: '2023', title: 'Founded', description: 'CA Firm Pro was born from the vision to simplify CA practice management.' },
+    { year: '2022', title: 'Founded', description: 'CA Firm Pro was born from the vision to simplify CA practice management.' },
     { year: '2023', title: 'Beta Launch', description: 'First version launched with 50 beta users providing valuable feedback.' },
-    { year: '2024', title: '500+ Users', description: 'Crossed 500 CA firms milestone with expanding feature set.' },
-    { year: '2025', title: 'Mobile App', description: 'Launched React Native mobile app for on-the-go access.' },
+    { year: '2023', title: '500+ Users', description: 'Crossed 500 CA firms milestone with expanding feature set.' },
+    { year: '2024', title: 'Mobile App', description: 'Launched React Native mobile app for on-the-go access.' },
   ];
 
   const team = [

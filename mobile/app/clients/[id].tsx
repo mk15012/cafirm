@@ -37,6 +37,15 @@ export default function ClientDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFirmForm, setShowFirmForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    contactPerson: '',
+    email: '',
+    phone: '',
+    address: '',
+    notes: '',
+  });
   const [firmFormData, setFirmFormData] = useState({
     name: '',
     panNumber: '',
@@ -80,6 +89,54 @@ export default function ClientDetailScreen() {
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.error || 'Failed to create firm');
     }
+  };
+
+  const openEditForm = () => {
+    if (client) {
+      setEditFormData({
+        name: client.name || '',
+        contactPerson: client.contactPerson || '',
+        email: client.email || '',
+        phone: client.phone || '',
+        address: client.address || '',
+        notes: client.notes || '',
+      });
+      setShowEditForm(true);
+    }
+  };
+
+  const handleEditClient = async () => {
+    try {
+      await api.put(`/clients/${params.id}`, editFormData);
+      setShowEditForm(false);
+      loadClient();
+      Alert.alert('Success', 'Client updated successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to update client');
+    }
+  };
+
+  const handleDeleteClient = () => {
+    Alert.alert(
+      'Delete Client',
+      `Are you sure you want to delete "${client?.name}"? This will also delete all associated firms, tasks, and documents.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/clients/${params.id}`);
+              Alert.alert('Success', 'Client deleted successfully');
+              router.canGoBack() ? router.back() : router.replace('/(tabs)/clients');
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.error || 'Failed to delete client');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -138,7 +195,74 @@ export default function ClientDetailScreen() {
           {client.contactPerson && (
             <Text style={styles.contactPerson}>{client.contactPerson}</Text>
           )}
+          
+          {/* Edit/Delete Buttons */}
+          {isCA && (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.editButton} onPress={openEditForm}>
+                <Text style={styles.editButtonText}>✏️ Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteClient}>
+                <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
+
+        {/* Edit Client Form */}
+        {showEditForm && isCA && (
+          <View style={styles.form}>
+            <Text style={styles.formTitle}>Edit Client</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Client Name *"
+              value={editFormData.name}
+              onChangeText={(text) => setEditFormData({ ...editFormData, name: text })}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Contact Person"
+              value={editFormData.contactPerson}
+              onChangeText={(text) => setEditFormData({ ...editFormData, contactPerson: text })}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              keyboardType="email-address"
+              value={editFormData.email}
+              onChangeText={(text) => setEditFormData({ ...editFormData, email: text })}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Phone"
+              keyboardType="phone-pad"
+              value={editFormData.phone}
+              onChangeText={(text) => setEditFormData({ ...editFormData, phone: text })}
+            />
+            <TextInput
+              style={[styles.input, { minHeight: 60 }]}
+              placeholder="Address"
+              multiline
+              value={editFormData.address}
+              onChangeText={(text) => setEditFormData({ ...editFormData, address: text })}
+            />
+            <TextInput
+              style={[styles.input, { minHeight: 60 }]}
+              placeholder="Notes"
+              multiline
+              value={editFormData.notes}
+              onChangeText={(text) => setEditFormData({ ...editFormData, notes: text })}
+            />
+            <View style={styles.formButtons}>
+              <TouchableOpacity style={styles.cancelFormButton} onPress={() => setShowEditForm(false)}>
+                <Text style={styles.cancelFormButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveButton} onPress={handleEditClient}>
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Contact Information */}
         <View style={styles.section}>
@@ -384,6 +508,68 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   addButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  editButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  editButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  formButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  cancelFormButton: {
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  cancelFormButtonText: {
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  saveButtonText: {
     color: 'white',
     fontSize: 14,
     fontWeight: '600',

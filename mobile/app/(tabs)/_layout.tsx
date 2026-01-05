@@ -71,17 +71,15 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Firms Tab - For CA/Team users, Documents Tab - For Individual users */}
+      {/* Firms Tab - Hidden for Individual users */}
       <Tabs.Screen
         name="firms"
         options={{
-          title: isIndividual ? 'Docs' : 'Firms',
+          title: 'Firms',
+          href: isIndividual ? null : undefined,
           tabBarIcon: ({ color, focused }: TabIconProps) => (
             <MaterialCommunityIcons 
-              name={isIndividual 
-                ? (focused ? 'file-document' : 'file-document-outline')
-                : (focused ? 'office-building' : 'office-building-outline')
-              } 
+              name={focused ? 'office-building' : 'office-building-outline'} 
               size={24} 
               color={color} 
             />
@@ -89,11 +87,19 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Documents Tab - Hidden, accessible from More */}
+      {/* Documents Tab - Visible for Individual, hidden for CA/Team (accessible from More) */}
       <Tabs.Screen
         name="documents"
         options={{
-          href: null, // Hide from tab bar, accessible from More
+          title: 'Docs',
+          href: isIndividual ? undefined : null,
+          tabBarIcon: ({ color, focused }: TabIconProps) => (
+            <MaterialCommunityIcons 
+              name={focused ? 'file-document' : 'file-document-outline'} 
+              size={24} 
+              color={color} 
+            />
+          ),
         }}
       />
 

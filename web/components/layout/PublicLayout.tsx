@@ -177,7 +177,7 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
 
           <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-sm text-slate-400">
-              © {new Date().getFullYear()} CA Firm Pro. All rights reserved.
+              © 2024 CA Firm Pro. All rights reserved.
             </p>
             <p className="text-sm text-slate-500">
               Made with ❤️ for Chartered Accountants

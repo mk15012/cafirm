@@ -87,7 +87,7 @@ export default function PricingPage() {
           monthlyPricePaise: 0,
           yearlyPricePaise: 0,
           popular: false,
-          limits: { clients: 50, firmsPerClient: 50, users: 2, storage: '1 GB', credentials: 100 },
+          limits: { clients: 10, firmsPerClient: 10, users: 2, storage: '512 MB', credentials: 20 },
           features: { taxCalculator: true, approvalWorkflow: false, activityLogs: false, documentManagement: true, invoiceManagement: true, meetings: false, customBranding: false, apiAccess: false, prioritySupport: false },
         },
         {
@@ -99,7 +99,7 @@ export default function PricingPage() {
           monthlyPricePaise: 49900,
           yearlyPricePaise: 499900,
           popular: false,
-          limits: { clients: 150, firmsPerClient: 150, users: 10, storage: '10 GB', credentials: 300 },
+          limits: { clients: 50, firmsPerClient: 50, users: 5, storage: '5 GB', credentials: 100 },
           features: { taxCalculator: true, approvalWorkflow: true, activityLogs: false, documentManagement: true, invoiceManagement: true, meetings: true, customBranding: false, apiAccess: false, prioritySupport: false },
         },
         {
@@ -111,7 +111,7 @@ export default function PricingPage() {
           monthlyPricePaise: 99900,
           yearlyPricePaise: 999900,
           popular: true,
-          limits: { clients: 300, firmsPerClient: 300, users: 30, storage: '30 GB', credentials: 600 },
+          limits: { clients: 200, firmsPerClient: 200, users: 15, storage: '20 GB', credentials: 400 },
           features: { taxCalculator: true, approvalWorkflow: true, activityLogs: true, documentManagement: true, invoiceManagement: true, meetings: true, customBranding: true, apiAccess: false, prioritySupport: true },
         },
         {
@@ -123,7 +123,7 @@ export default function PricingPage() {
           monthlyPricePaise: 249900,
           yearlyPricePaise: 2499900,
           popular: false,
-          limits: { clients: 'Unlimited', firmsPerClient: 'Unlimited', users: 'Unlimited', storage: '100 GB', credentials: 'Unlimited' },
+          limits: { clients: 'Unlimited', firmsPerClient: 'Unlimited', users: 'Unlimited', storage: '50 GB', credentials: 'Unlimited' },
           features: { taxCalculator: true, approvalWorkflow: true, activityLogs: true, documentManagement: true, invoiceManagement: true, meetings: true, customBranding: true, apiAccess: true, prioritySupport: true },
         },
       ]);

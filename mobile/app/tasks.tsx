@@ -7,6 +7,8 @@ import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import { format } from 'date-fns';
 
+// Helper to check if user is INDIVIDUAL
+
 interface Task {
   id: number;
   title: string;
@@ -36,7 +38,7 @@ interface User {
 
 export default function TasksScreen() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [firms, setFirms] = useState<Firm[]>([]);
@@ -46,6 +48,9 @@ export default function TasksScreen() {
   const [filters, setFilters] = useState({ status: '' });
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [generatingReminders, setGeneratingReminders] = useState(false);
+
+  const isIndividual = user?.role === 'INDIVIDUAL';
   
   // Form state
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
@@ -151,6 +156,21 @@ export default function TasksScreen() {
     });
   };
 
+  const generateReminders = async (forNextYear = false) => {
+    try {
+      setGeneratingReminders(true);
+      const endpoint = forNextYear ? '/tasks/generate-next-year-tasks' : '/tasks/generate-tax-tasks';
+      const response = await api.post(endpoint);
+      Alert.alert('Success', response.data.message || 'Tax reminders generated successfully!');
+      loadTasks();
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Failed to generate reminders';
+      Alert.alert('Error', errorMsg);
+    } finally {
+      setGeneratingReminders(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = { PENDING: '#fbbf24', IN_PROGRESS: '#3b82f6', AWAITING_APPROVAL: '#a855f7', COMPLETED: '#10b981' };
     return colors[status] || '#6b7280';
@@ -179,54 +199,115 @@ export default function TasksScreen() {
           <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/dashboard')}>
             <Text style={styles.backButton}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Tasks</Text>
-          <TouchableOpacity onPress={() => setShowAddModal(true)}>
-            <Text style={styles.addButton}>+ Add</Text>
-          </TouchableOpacity>
+          <Text style={styles.title}>{isIndividual ? 'My Reminders' : 'Tasks'}</Text>
+          {isIndividual ? (
+            <TouchableOpacity 
+              onPress={() => generateReminders(false)} 
+              disabled={generatingReminders}
+              style={generatingReminders ? { opacity: 0.5 } : undefined}
+            >
+              <Text style={styles.generateButton}>{generatingReminders ? '...' : '✨ Generate'}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={() => setShowAddModal(true)}>
+              <Text style={styles.addButton}>+ Add</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Filters */}
-        <View style={styles.filters}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {['', 'PENDING', 'IN_PROGRESS', 'AWAITING_APPROVAL', 'COMPLETED'].map((status) => (
-              <TouchableOpacity
-                key={status}
-                style={[styles.filterChip, filters.status === status && styles.filterChipActive]}
-                onPress={() => setFilters({ status })}
-              >
-                <Text style={[styles.filterChipText, filters.status === status && styles.filterChipTextActive]}>
-                  {status || 'All'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+        {/* Filters - Only for CA/MANAGER/STAFF */}
+        {!isIndividual && (
+          <View style={styles.filters}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {['', 'PENDING', 'IN_PROGRESS', 'AWAITING_APPROVAL', 'COMPLETED'].map((status) => (
+                <TouchableOpacity
+                  key={status}
+                  style={[styles.filterChip, filters.status === status && styles.filterChipActive]}
+                  onPress={() => setFilters({ status })}
+                >
+                  <Text style={[styles.filterChipText, filters.status === status && styles.filterChipTextActive]}>
+                    {status || 'All'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <View style={styles.list}>
-          {tasks.map((task) => (
-            <TouchableOpacity
-              key={task.id}
-              style={[styles.card, isOverdue(task.dueDate) && task.status !== 'COMPLETED' && styles.cardOverdue]}
-              onPress={() => router.push(`/tasks/${task.id}`)}
-            >
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{task.title}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(task.status) }]}>
-                  <Text style={styles.statusBadgeText}>{task.status.replace('_', ' ')}</Text>
+          {tasks.length === 0 ? (
+            <View style={styles.emptyState}>
+              {isIndividual && filters.status === '' ? (
+                <>
+                  <Text style={styles.emptyIcon}>🔔</Text>
+                  <Text style={styles.emptyTitle}>No Reminders Yet</Text>
+                  <Text style={styles.emptyText}>
+                    Generate your tax deadline reminders for the financial year
+                  </Text>
+                  <Text style={styles.emptySubtext}>
+                    We'll create reminders for ITR filing, advance tax, Form 16, and more.
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.generateMainButton, generatingReminders && styles.disabledButton]}
+                    onPress={() => generateReminders(false)}
+                    disabled={generatingReminders}
+                  >
+                    {generatingReminders ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Text style={styles.generateMainButtonText}>✨ Generate Current FY Reminders</Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.generateSecondaryButton, generatingReminders && styles.disabledButton]}
+                    onPress={() => generateReminders(true)}
+                    disabled={generatingReminders}
+                  >
+                    <Text style={styles.generateSecondaryButtonText}>📅 Generate Next FY Reminders</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyIcon}>📋</Text>
+                  <Text style={styles.emptyTitle}>No {isIndividual ? 'Reminders' : 'Tasks'} Found</Text>
+                  <Text style={styles.emptyText}>
+                    {filters.status ? 'Try a different filter' : 'No tasks available'}
+                  </Text>
+                </>
+              )}
+            </View>
+          ) : (
+            tasks.map((task) => (
+              <TouchableOpacity
+                key={task.id}
+                style={[styles.card, isOverdue(task.dueDate) && task.status !== 'COMPLETED' && styles.cardOverdue]}
+                onPress={() => router.push(`/tasks/${task.id}`)}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardTitle} numberOfLines={2}>{task.title}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(task.status) }]}>
+                    <Text style={styles.statusBadgeText}>{task.status.replace('_', ' ')}</Text>
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.cardSubtext}>Client: {task.firm.client.name}</Text>
-              <Text style={styles.cardSubtext}>Firm: {task.firm.name}</Text>
-              <Text style={styles.cardSubtext}>Assigned: {task.assignedTo.name}</Text>
-              <View style={styles.cardFooter}>
-                <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(task.priority) }]}>
-                  <Text style={styles.priorityBadgeText}>{task.priority}</Text>
+                {!isIndividual && (
+                  <>
+                    <Text style={styles.cardSubtext}>Client: {task.firm.client.name}</Text>
+                    <Text style={styles.cardSubtext}>Firm: {task.firm.name}</Text>
+                    <Text style={styles.cardSubtext}>Assigned: {task.assignedTo.name}</Text>
+                  </>
+                )}
+                {task.description && isIndividual && (
+                  <Text style={styles.cardDescription} numberOfLines={2}>{task.description}</Text>
+                )}
+                <View style={styles.cardFooter}>
+                  <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(task.priority) }]}>
+                    <Text style={styles.priorityBadgeText}>{task.priority}</Text>
+                  </View>
+                  <Text style={styles.dueDate}>Due: {format(new Date(task.dueDate), 'MMM dd, yyyy')}</Text>
                 </View>
-                <Text style={styles.dueDate}>Due: {format(new Date(task.dueDate), 'MMM dd, yyyy')}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-          {tasks.length === 0 && <Text style={styles.emptyText}>No tasks found</Text>}
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -371,6 +452,7 @@ const styles = StyleSheet.create({
   backButton: { color: '#0ea5e9', fontSize: 16, fontWeight: '600' },
   title: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
   addButton: { color: '#10b981', fontSize: 16, fontWeight: '600' },
+  generateButton: { color: '#0ea5e9', fontSize: 14, fontWeight: '600' },
   filters: { backgroundColor: 'white', padding: 12, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f1f5f9', marginRight: 8 },
   filterChipActive: { backgroundColor: '#0ea5e9' },
@@ -388,7 +470,18 @@ const styles = StyleSheet.create({
   priorityBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   priorityBadgeText: { color: 'white', fontSize: 10, fontWeight: '600' },
   dueDate: { fontSize: 12, color: '#94a3b8' },
-  emptyText: { textAlign: 'center', color: '#94a3b8', marginTop: 32 },
+  cardDescription: { fontSize: 13, color: '#64748b', marginTop: 4, marginBottom: 4 },
+  
+  // Empty state styles
+  emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyTitle: { fontSize: 18, fontWeight: '600', color: '#0f172a', marginBottom: 8 },
+  emptyText: { fontSize: 14, color: '#64748b', textAlign: 'center' },
+  emptySubtext: { fontSize: 12, color: '#94a3b8', textAlign: 'center', marginTop: 8, marginBottom: 24, lineHeight: 18 },
+  generateMainButton: { backgroundColor: '#0ea5e9', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 10, marginBottom: 12, minWidth: 240, alignItems: 'center' },
+  generateMainButtonText: { color: '#ffffff', fontWeight: '600', fontSize: 15 },
+  generateSecondaryButton: { backgroundColor: '#ffffff', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', minWidth: 240, alignItems: 'center' },
+  generateSecondaryButtonText: { color: '#64748b', fontWeight: '600', fontSize: 15 },
   
   // Modal styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

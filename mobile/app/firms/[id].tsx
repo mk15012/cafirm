@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, RefreshControl, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
@@ -60,11 +60,21 @@ interface Firm {
 export default function FirmDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [firm, setFirm] = useState<Firm | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    panNumber: '',
+    gstNumber: '',
+    registrationNumber: '',
+    address: '',
+  });
+
+  const isCA = user?.role === 'CA';
 
   useEffect(() => {
     if (isAuthenticated && params.id) {
@@ -85,6 +95,53 @@ export default function FirmDetailScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const openEditForm = () => {
+    if (firm) {
+      setEditFormData({
+        name: firm.name || '',
+        panNumber: firm.panNumber || '',
+        gstNumber: firm.gstNumber || '',
+        registrationNumber: firm.registrationNumber || '',
+        address: firm.address || '',
+      });
+      setShowEditForm(true);
+    }
+  };
+
+  const handleEditFirm = async () => {
+    try {
+      await api.put(`/firms/${params.id}`, editFormData);
+      setShowEditForm(false);
+      loadFirm();
+      Alert.alert('Success', 'Firm updated successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to update firm');
+    }
+  };
+
+  const handleDeleteFirm = () => {
+    Alert.alert(
+      'Delete Firm',
+      `Are you sure you want to delete "${firm?.name}"? This will also delete all associated tasks, documents, and invoices.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/firms/${params.id}`);
+              Alert.alert('Success', 'Firm deleted successfully');
+              router.canGoBack() ? router.back() : router.replace('/(tabs)/firms');
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.error || 'Failed to delete firm');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -204,7 +261,69 @@ export default function FirmDetailScreen() {
           <Text style={styles.infoLabel}>Created On</Text>
           <Text style={styles.infoValue}>{format(new Date(firm.createdAt), 'MMM dd, yyyy')}</Text>
         </View>
+
+        {/* Edit/Delete Buttons */}
+        {isCA && (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={styles.editButton} onPress={openEditForm}>
+              <Text style={styles.editButtonText}>✏️ Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteFirm}>
+              <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
+
+      {/* Edit Firm Form */}
+      {showEditForm && isCA && (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Edit Firm</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Firm Name *"
+            value={editFormData.name}
+            onChangeText={(text) => setEditFormData({ ...editFormData, name: text })}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="PAN Number *"
+            autoCapitalize="characters"
+            maxLength={10}
+            value={editFormData.panNumber}
+            onChangeText={(text) => setEditFormData({ ...editFormData, panNumber: text.toUpperCase() })}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="GST Number"
+            autoCapitalize="characters"
+            maxLength={15}
+            value={editFormData.gstNumber}
+            onChangeText={(text) => setEditFormData({ ...editFormData, gstNumber: text.toUpperCase() })}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Registration Number"
+            value={editFormData.registrationNumber}
+            onChangeText={(text) => setEditFormData({ ...editFormData, registrationNumber: text })}
+          />
+          <TextInput
+            style={[styles.input, { minHeight: 60 }]}
+            placeholder="Address"
+            multiline
+            value={editFormData.address}
+            onChangeText={(text) => setEditFormData({ ...editFormData, address: text })}
+          />
+          <View style={styles.formButtons}>
+            <TouchableOpacity style={styles.cancelFormButton} onPress={() => setShowEditForm(false)}>
+              <Text style={styles.cancelFormButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveButton} onPress={handleEditFirm}>
+              <Text style={styles.saveButtonText}>Save Changes</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Statistics */}
       <View style={styles.statsContainer}>
@@ -430,6 +549,77 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
     fontWeight: '500',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  editButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  editButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  input: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  formButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  cancelFormButton: {
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  cancelFormButtonText: {
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flex: 1,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',

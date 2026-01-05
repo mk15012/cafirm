@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,6 +5,373 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     Int                @id @default(autoincrement())
+  name                   String
+  email                  String             @unique
+  password               String
+  phone                  String?
+  role                   UserRole           @default(STAFF)
+  reportsToId            Int?
+  status                 UserStatus         @default(ACTIVE)
+  profilePicture         String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  birthday               DateTime?
+  activityLogs           ActivityLog[]
+  approvedApprovals      Approval[]         @relation("ApprovalApprover")
+  requestedApprovals     Approval[]         @relation("ApprovalRequester")
+  createdClients         Client[]           @relation("ClientCreator")
+  createdCredentials     ClientCredential[] @relation("CredentialCreator")
+  uploadedDocuments      Document[]
+  createdFirms           Firm[]             @relation("FirmCreator")
+  assignedFirmServices   FirmService[]      @relation("FirmServiceAssignee")
+  createdInvoices        Invoice[]          @relation("InvoiceCreator")
+  createdMeetings        Meeting[]          @relation("MeetingCreator")
+  createdServices        Service[]          @relation("ServiceCreator")
+  subscription           Subscription?      @relation("UserSubscription")
+  assignedTasks          Task[]             @relation("TaskAssignee")
+  createdTasks           Task[]             @relation("TaskCreator")
+  reportsTo              User?              @relation("ReportingHierarchy", fields: [reportsToId], references: [id])
+  teamMembers            User[]             @relation("ReportingHierarchy")
+  firmAssignmentsCreated UserFirmMapping[]  @relation("FirmAssignment")
+  firmAssignments        UserFirmMapping[]  @relation("UserFirmMapping")
+
+  @@index([email])
+  @@index([role])
+  @@index([reportsToId], map: "User_reportsToId_idx")
+}
+
+model Client {
+  id            Int                @id @default(autoincrement())
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  notes         String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  createdById   Int
+  createdBy     User               @relation("ClientCreator", fields: [createdById], references: [id])
+  credentials   ClientCredential[]
+  firms         Firm[]
+  meetings      Meeting[]
+
+  @@index([createdById])
+}
+
+model Firm {
+  id                 Int                @id @default(autoincrement())
+  clientId           Int
+  name               String
+  panNumber          String             @unique
+  gstNumber          String?            @unique
+  registrationNumber String?
+  address            String?
+  status             String             @default("Active")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  createdById        Int
+  annualTurnover     Decimal?           @db.Decimal(15, 2)
+  complianceNotes    String?            @db.Text
+  entityType         String?
+  financialYear      String?
+  gstFrequency       String?
+  hasAdvanceTax      Boolean            @default(false)
+  hasGST             Boolean            @default(false)
+  hasITR             Boolean            @default(true)
+  hasROC             Boolean            @default(false)
+  hasTDS             Boolean            @default(false)
+  hasTaxAudit        Boolean            @default(false)
+  itrDueDate         String?
+  itrType            String?
+  natureOfBusiness   String?
+  state              String?
+  credentials        ClientCredential[]
+  documents          Document[]
+  client             Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdBy          User               @relation("FirmCreator", fields: [createdById], references: [id])
+  firmServices       FirmService[]
+  invoices           Invoice[]
+  meetings           Meeting[]
+  tasks              Task[]
+  userAssignments    UserFirmMapping[]
+
+  @@index([clientId])
+  @@index([panNumber])
+  @@index([gstNumber])
+  @@index([createdById], map: "Firm_createdById_idx")
+}
+
+model Task {
+  id           Int          @id @default(autoincrement())
+  firmId       Int
+  title        String
+  description  String?
+  assignedToId Int
+  status       TaskStatus   @default(PENDING)
+  priority     TaskPriority @default(MEDIUM)
+  dueDate      DateTime
+  completedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  createdById  Int
+  approval     Approval?
+  documents    Document[]
+  assignedTo   User         @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  createdBy    User         @relation("TaskCreator", fields: [createdById], references: [id])
+  firm         Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([createdById], map: "Task_createdById_idx")
+}
+
+model Approval {
+  id            Int            @id @default(autoincrement())
+  taskId        Int            @unique
+  requestedById Int
+  approvedById  Int?
+  status        ApprovalStatus @default(PENDING)
+  remarks       String?
+  createdAt     DateTime       @default(now())
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+  approvedBy    User?          @relation("ApprovalApprover", fields: [approvedById], references: [id])
+  requestedBy   User           @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  task          Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([requestedById])
+  @@index([approvedById], map: "Approval_approvedById_idx")
+}
+
+model Document {
+  id           Int          @id @default(autoincrement())
+  firmId       Int
+  taskId       Int?
+  documentType DocumentType @default(OTHER)
+  fileName     String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  uploadedById Int
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  firm         Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  task         Task?        @relation(fields: [taskId], references: [id])
+  uploadedBy   User         @relation(fields: [uploadedById], references: [id])
+
+  @@index([firmId])
+  @@index([taskId])
+  @@index([documentType])
+  @@index([uploadedById], map: "Document_uploadedById_idx")
+}
+
+model Invoice {
+  id               Int           @id @default(autoincrement())
+  firmId           Int
+  invoiceNumber    String        @unique
+  amount           Float
+  taxAmount        Float         @default(0)
+  totalAmount      Float
+  dueDate          DateTime
+  status           InvoiceStatus @default(UNPAID)
+  paidDate         DateTime?
+  paymentReference String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  createdById      Int
+  createdBy        User          @relation("InvoiceCreator", fields: [createdById], references: [id])
+  firm             Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([invoiceNumber])
+  @@index([createdById], map: "Invoice_createdById_idx")
+}
+
+model UserFirmMapping {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  firmId       Int
+  assignedAt   DateTime @default(now())
+  assignedById Int
+  assignedBy   User     @relation("FirmAssignment", fields: [assignedById], references: [id])
+  firm         Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user         User     @relation("UserFirmMapping", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, firmId])
+  @@index([userId])
+  @@index([firmId])
+  @@index([assignedById], map: "UserFirmMapping_assignedById_idx")
+}
+
+model ActivityLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  actionType  String
+  entityType  String
+  entityId    String
+  description String
+  metadata    String?  @default("{}")
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model Meeting {
+  id                 Int      @id @default(autoincrement())
+  title              String
+  description        String?
+  clientId           Int?
+  firmId             Int?
+  meetingDate        DateTime
+  meetingTime        String
+  location           String?
+  notes              String?
+  googleCalendarLink String?
+  createdById        Int
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  client             Client?  @relation(fields: [clientId], references: [id])
+  createdBy          User     @relation("MeetingCreator", fields: [createdById], references: [id])
+  firm               Firm?    @relation(fields: [firmId], references: [id])
+
+  @@index([clientId])
+  @@index([firmId])
+  @@index([createdById])
+  @@index([meetingDate])
+}
+
+model ClientCredential {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  firmId      Int?
+  portalName  String
+  portalUrl   String?
+  username    String
+  password    String
+  remarks     String?
+  lastUpdated DateTime @default(now())
+  createdById Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation("CredentialCreator", fields: [createdById], references: [id])
+  firm        Firm?    @relation(fields: [firmId], references: [id])
+
+  @@index([clientId])
+  @@index([firmId])
+  @@index([portalName])
+  @@index([createdById], map: "ClientCredential_createdById_idx")
+}
+
+model Subscription {
+  id                     Int                @id @default(autoincrement())
+  userId                 Int                @unique
+  plan                   PlanType           @default(FREE)
+  status                 SubscriptionStatus @default(ACTIVE)
+  billingCycle           String             @default("monthly")
+  priceInPaise           Int                @default(0)
+  startDate              DateTime           @default(now())
+  endDate                DateTime?
+  trialEndsAt            DateTime?
+  clientsUsed            Int                @default(0)
+  firmsUsed              Int                @default(0)
+  usersUsed              Int                @default(1)
+  storageUsedMB          Int                @default(0)
+  credentialsUsed        Int                @default(0)
+  lastPaymentDate        DateTime?
+  lastPaymentAmount      Int?
+  paymentMethod          String?
+  razorpayCustomerId     String?
+  razorpaySubscriptionId String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  cancelledAt            DateTime?
+  planCode               String             @default("FREE")
+  razorpayOrderId        String?
+  razorpayPaymentId      String?
+  razorpaySignature      String?
+  planDetails            Plan               @relation(fields: [planCode], references: [code])
+  user                   User               @relation("UserSubscription", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([plan])
+  @@index([status])
+  @@index([endDate])
+  @@index([planCode], map: "Subscription_planCode_idx")
+}
+
+model Plan {
+  id                Int            @id @default(autoincrement())
+  code              String         @unique
+  name              String
+  description       String?
+  monthlyPricePaise Int            @default(0)
+  yearlyPricePaise  Int            @default(0)
+  maxClients        Int            @default(3)
+  maxFirmsPerClient Int            @default(2)
+  maxUsers          Int            @default(1)
+  maxStorageMB      Int            @default(100)
+  maxCredentials    Int            @default(5)
+  features          String         @db.Text
+  isActive          Boolean        @default(true)
+  isPopular         Boolean        @default(false)
+  sortOrder         Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  subscriptions     Subscription[]
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model Service {
+  id           Int              @id @default(autoincrement())
+  name         String
+  description  String?
+  category     ServiceCategory  @default(OTHER)
+  frequency    ServiceFrequency @default(ONE_TIME)
+  rate         Int
+  isActive     Boolean          @default(true)
+  createdById  Int
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  firmServices FirmService[]
+  createdBy    User             @relation("ServiceCreator", fields: [createdById], references: [id])
+
+  @@index([createdById])
+  @@index([category])
+}
+
+model FirmService {
+  id           Int      @id @default(autoincrement())
+  firmId       Int
+  serviceId    Int
+  assignedToId Int?
+  customRate   Int?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  assignedTo   User?    @relation("FirmServiceAssignee", fields: [assignedToId], references: [id])
+  firm         Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  service      Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([firmId, serviceId])
+  @@index([firmId])
+  @@index([serviceId])
+  @@index([assignedToId], map: "FirmService_assignedToId_idx")
 }
 
 enum UserRole {
@@ -92,400 +456,3 @@ enum SubscriptionStatus {
   PENDING
   PAYMENT_FAILED
 }
-
-model User {
-  id            Int         @id @default(autoincrement())
-  name          String
-  email         String      @unique
-  password      String
-  phone         String?
-  birthday      DateTime?   // Stores birthday for greeting purposes
-  role          UserRole    @default(STAFF)
-  reportsToId   Int?
-  reportsTo     User?       @relation("ReportingHierarchy", fields: [reportsToId], references: [id])
-  teamMembers   User[]      @relation("ReportingHierarchy")
-  status        UserStatus  @default(ACTIVE)
-  profilePicture String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  // Relations
-  createdClients    Client[]         @relation("ClientCreator")
-  createdFirms      Firm[]           @relation("FirmCreator")
-  assignedTasks     Task[]           @relation("TaskAssignee")
-  createdTasks      Task[]           @relation("TaskCreator")
-  requestedApprovals Approval[]      @relation("ApprovalRequester")
-  approvedApprovals Approval[]       @relation("ApprovalApprover")
-  uploadedDocuments Document[]
-  createdInvoices   Invoice[]        @relation("InvoiceCreator")
-  createdMeetings   Meeting[]       @relation("MeetingCreator")
-  activityLogs      ActivityLog[]
-  firmAssignments   UserFirmMapping[] @relation("UserFirmMapping")
-  firmAssignmentsCreated UserFirmMapping[] @relation("FirmAssignment")
-  createdCredentials ClientCredential[] @relation("CredentialCreator")
-  subscription       Subscription?      @relation("UserSubscription")
-  createdServices    Service[]         @relation("ServiceCreator")
-  assignedFirmServices FirmService[]   @relation("FirmServiceAssignee")
-
-  @@index([email])
-  @@index([role])
-}
-
-model Client {
-  id          Int      @id @default(autoincrement())
-  name        String
-  contactPerson String?
-  email       String?
-  phone       String?
-  address     String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdById Int
-  createdBy   User     @relation("ClientCreator", fields: [createdById], references: [id])
-
-  // Relations
-  firms Firm[]
-  meetings Meeting[]
-  credentials ClientCredential[]
-
-  @@index([createdById])
-}
-
-model Firm {
-  id               Int      @id @default(autoincrement())
-  clientId         Int
-  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  name             String
-  panNumber        String   @unique
-  gstNumber        String?  @unique
-  registrationNumber String?
-  address          String?
-  status           String   @default("Active")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  createdById      Int
-  createdBy        User     @relation("FirmCreator", fields: [createdById], references: [id])
-
-  // Business Details (for compliance calculation)
-  entityType        String?   // INDIVIDUAL, PROPRIETORSHIP, PARTNERSHIP, LLP, PRIVATE_LIMITED, PUBLIC_LIMITED
-  natureOfBusiness  String?   // GOODS, SERVICES, BOTH
-  state             String?   // For GST special category states
-  annualTurnover    Decimal?  @db.Decimal(15, 2)  // In rupees
-  financialYear     String?   // "2024-25"
-  
-  // Compliance Flags (set after CA review)
-  hasGST            Boolean   @default(false)
-  gstFrequency      String?   // MONTHLY, QUARTERLY
-  hasTDS            Boolean   @default(false)
-  hasITR            Boolean   @default(true)
-  itrType           String?   // ITR1, ITR3, ITR4, ITR5, ITR6, ITR7
-  itrDueDate        String?   // JULY_31, OCT_31, NOV_30 (based on audit)
-  hasTaxAudit       Boolean   @default(false)
-  hasAdvanceTax     Boolean   @default(false)
-  hasROC            Boolean   @default(false)
-  complianceNotes   String?   @db.Text
-
-  // Relations
-  tasks     Task[]
-  documents Document[]
-  invoices  Invoice[]
-  meetings  Meeting[]
-  userAssignments UserFirmMapping[]
-  credentials ClientCredential[]
-  firmServices FirmService[]
-
-  @@index([clientId])
-  @@index([panNumber])
-  @@index([gstNumber])
-}
-
-model Task {
-  id          Int          @id @default(autoincrement())
-  firmId      Int
-  firm        Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  assignedToId Int
-  assignedTo User         @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  status      TaskStatus  @default(PENDING)
-  priority    TaskPriority @default(MEDIUM)
-  dueDate     DateTime
-  completedAt DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  createdById Int
-  createdBy   User         @relation("TaskCreator", fields: [createdById], references: [id])
-
-  // Relations
-  approval   Approval?
-  documents  Document[]
-
-  @@index([firmId])
-  @@index([assignedToId])
-  @@index([status])
-  @@index([dueDate])
-}
-
-model Approval {
-  id            Int            @id @default(autoincrement())
-  taskId        Int            @unique
-  task          Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  requestedById Int
-  requestedBy   User           @relation("ApprovalRequester", fields: [requestedById], references: [id])
-  approvedById  Int?
-  approvedBy    User?          @relation("ApprovalApprover", fields: [approvedById], references: [id])
-  status        ApprovalStatus @default(PENDING)
-  remarks       String?
-  createdAt      DateTime       @default(now())
-  approvedAt    DateTime?
-  rejectedAt    DateTime?
-
-  @@index([status])
-  @@index([requestedById])
-}
-
-model Document {
-  id           Int          @id @default(autoincrement())
-  firmId       Int
-  firm         Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  taskId       Int?
-  task         Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  documentType DocumentType @default(OTHER)
-  fileName     String
-  filePath     String
-  fileSize     Int
-  mimeType     String
-  uploadedById Int
-  uploadedBy   User         @relation(fields: [uploadedById], references: [id])
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  @@index([firmId])
-  @@index([taskId])
-  @@index([documentType])
-}
-
-model Invoice {
-  id              Int           @id @default(autoincrement())
-  firmId          Int
-  firm            Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  invoiceNumber   String        @unique
-  amount          Float
-  taxAmount       Float         @default(0)
-  totalAmount     Float
-  dueDate         DateTime
-  status          InvoiceStatus @default(UNPAID)
-  paidDate        DateTime?
-  paymentReference String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  createdById     Int
-  createdBy       User          @relation("InvoiceCreator", fields: [createdById], references: [id])
-
-  @@index([firmId])
-  @@index([status])
-  @@index([dueDate])
-  @@index([invoiceNumber])
-}
-
-model UserFirmMapping {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation("UserFirmMapping", fields: [userId], references: [id], onDelete: Cascade)
-  firmId    Int
-  firm      Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  assignedAt DateTime @default(now())
-  assignedById Int
-  assignedBy   User   @relation("FirmAssignment", fields: [assignedById], references: [id])
-
-  @@unique([userId, firmId])
-  @@index([userId])
-  @@index([firmId])
-}
-
-model ActivityLog {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  actionType  String   // CREATE, UPDATE, DELETE, VIEW, APPROVE, REJECT
-  entityType  String   // User, Client, Firm, Task, Approval, Document, Invoice
-  entityId    String
-  description String
-  metadata    String?  @default("{}") // JSON string for before/after values
-  ipAddress   String?
-  createdAt   DateTime @default(now())
-
-  @@index([userId])
-  @@index([entityType, entityId])
-  @@index([createdAt])
-}
-
-model Meeting {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String?
-  clientId    Int?
-  client      Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  firmId      Int?
-  firm        Firm?    @relation(fields: [firmId], references: [id], onDelete: SetNull)
-  meetingDate DateTime
-  meetingTime String   // Time in HH:MM format
-  location    String?
-  notes       String?
-  googleCalendarLink String?
-  createdById Int
-  createdBy   User     @relation("MeetingCreator", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([clientId])
-  @@index([firmId])
-  @@index([createdById])
-  @@index([meetingDate])
-}
-
-// Government portal credentials for clients
-model ClientCredential {
-  id            Int      @id @default(autoincrement())
-  clientId      Int
-  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  firmId        Int?
-  firm          Firm?    @relation(fields: [firmId], references: [id], onDelete: SetNull)
-  portalName    String   // e.g., "Income Tax Portal", "GST Portal", "MCA Portal"
-  portalUrl     String?  // URL of the portal
-  username      String
-  password      String   // Encrypted in application layer
-  remarks       String?  // Any additional notes
-  lastUpdated   DateTime @default(now())
-  createdById   Int
-  createdBy     User     @relation("CredentialCreator", fields: [createdById], references: [id])
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([clientId])
-  @@index([firmId])
-  @@index([portalName])
-}
-
-// Subscription model for pricing tiers
-model Subscription {
-  id                Int                @id @default(autoincrement())
-  userId            Int                @unique
-  user              User               @relation("UserSubscription", fields: [userId], references: [id], onDelete: Cascade)
-  plan              PlanType           @default(FREE)
-  planCode          String             @default("FREE")
-  planDetails       Plan?              @relation(fields: [planCode], references: [code])
-  status            SubscriptionStatus @default(ACTIVE)
-  
-  // Billing details
-  billingCycle      String             @default("monthly") // monthly, yearly
-  priceInPaise      Int                @default(0)         // Amount in paise (₹499 = 49900)
-  
-  // Dates
-  startDate         DateTime           @default(now())
-  endDate           DateTime?
-  trialEndsAt       DateTime?
-  cancelledAt       DateTime?
-  
-  // Usage tracking (current period)
-  clientsUsed       Int                @default(0)
-  firmsUsed         Int                @default(0)
-  usersUsed         Int                @default(1)
-  storageUsedMB     Int                @default(0)
-  credentialsUsed   Int                @default(0)
-  
-  // Payment info
-  lastPaymentDate   DateTime?
-  lastPaymentAmount Int?
-  paymentMethod     String?            // razorpay, upi, card, etc.
-  razorpayCustomerId String?
-  razorpaySubscriptionId String?
-  razorpayOrderId   String?
-  razorpayPaymentId String?
-  razorpaySignature String?
-  
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-
-  @@index([plan])
-  @@index([status])
-  @@index([endDate])
-}
-
-// Pricing Plans stored in database for flexibility
-model Plan {
-  id                  Int      @id @default(autoincrement())
-  code                String   @unique  // FREE, BASIC, PROFESSIONAL, ENTERPRISE
-  name                String             // Display name: "Starter", "Basic", etc.
-  description         String?
-  
-  // Pricing (in paise: ₹499 = 49900)
-  monthlyPricePaise   Int      @default(0)
-  yearlyPricePaise    Int      @default(0)
-  
-  // Limits (-1 = unlimited)
-  maxClients          Int      @default(3)
-  maxFirmsPerClient   Int      @default(2)
-  maxUsers            Int      @default(1)
-  maxStorageMB        Int      @default(100)
-  maxCredentials      Int      @default(5)
-  
-  // Features (JSON stored as text for flexibility)
-  features            String   @db.Text  // JSON: { taxCalculator: true, approvalWorkflow: false, ... }
-  
-  // Metadata
-  isActive            Boolean  @default(true)
-  isPopular           Boolean  @default(false)
-  sortOrder           Int      @default(0)
-  
-  // Relations
-  subscriptions       Subscription[]
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@index([code])
-  @@index([isActive])
-}
-
-// Service templates for each CA/Firm
-model Service {
-  id           Int              @id @default(autoincrement())
-  name         String           // "ITR - Salaried Individual"
-  description  String?
-  category     ServiceCategory  @default(OTHER)
-  frequency    ServiceFrequency @default(ONE_TIME)
-  rate         Int              // Amount in paise (150000 = ₹1,500)
-  isActive     Boolean          @default(true)
-  createdById  Int              // The CA who created this service template
-  createdBy    User             @relation("ServiceCreator", fields: [createdById], references: [id])
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  // Relations
-  firmServices FirmService[]
-
-  @@index([createdById])
-  @@index([category])
-}
-
-// Services enabled for a specific firm with optional overrides
-model FirmService {
-  id           Int              @id @default(autoincrement())
-  firmId       Int
-  firm         Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  serviceId    Int
-  service      Service          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  assignedToId Int?             // Default assignee for this service
-  assignedTo   User?            @relation("FirmServiceAssignee", fields: [assignedToId], references: [id])
-  customRate   Int?             // Override rate for this firm (null = use service default)
-  isActive     Boolean          @default(true)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  @@unique([firmId, serviceId])
-  @@index([firmId])
-  @@index([serviceId])
-}
-

@@ -99,8 +99,18 @@ function FirmsView() {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Firms</Text>
-        <Text style={styles.headerSubtitle}>{filteredFirms.length} firms</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.headerTitle}>Firms</Text>
+            <Text style={styles.headerSubtitle}>{filteredFirms.length} firms</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push('/firms/add')}
+          >
+            <Text style={styles.addButtonText}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search */}
@@ -342,8 +352,24 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 12,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   headerTitle: { fontSize: 24, fontWeight: '700', color: '#ffffff' },
   headerSubtitle: { fontSize: 14, color: '#94a3b8', marginTop: 4 },
+  addButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  addButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
   searchContainer: {
     backgroundColor: '#0f172a',
     paddingHorizontal: 16,
@@ -516,5 +542,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
 });
+
 
 

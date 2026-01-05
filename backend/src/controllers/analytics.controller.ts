@@ -37,6 +37,7 @@ export async function getRevenueAnalytics(req: Request, res: Response) {
       },
       select: {
         amount: true,
+        totalAmount: true,
         status: true,
         createdAt: true,
         dueDate: true,
@@ -56,7 +57,8 @@ export async function getRevenueAnalytics(req: Request, res: Response) {
       const date = new Date(invoice.createdAt);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (monthlyRevenue[key]) {
-        const amount = Number(invoice.amount);
+        // Use totalAmount (includes GST/tax) for revenue reporting
+        const amount = Number(invoice.totalAmount || invoice.amount);
         monthlyRevenue[key].total += amount;
         if (invoice.status === 'PAID') {
           monthlyRevenue[key].paid += amount;
@@ -66,11 +68,11 @@ export async function getRevenueAnalytics(req: Request, res: Response) {
       }
     });
 
-    // Calculate totals
-    const totalRevenue = invoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
+    // Calculate totals (use totalAmount which includes GST/tax)
+    const totalRevenue = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount || inv.amount), 0);
     const paidRevenue = invoices
       .filter(inv => inv.status === 'PAID')
-      .reduce((sum, inv) => sum + Number(inv.amount), 0);
+      .reduce((sum, inv) => sum + Number(inv.totalAmount || inv.amount), 0);
     const pendingRevenue = totalRevenue - paidRevenue;
 
     // For current year: show current month stats. For past years: show December stats
@@ -334,12 +336,13 @@ export async function getClientAnalytics(req: Request, res: Response) {
         const firmIds = client.firms.map(f => f.id);
         const invoices = await prisma.invoice.findMany({
           where: { firmId: { in: firmIds } },
-          select: { amount: true, status: true },
+          select: { amount: true, totalAmount: true, status: true },
         });
-        const totalRevenue = invoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
+        // Use totalAmount (includes GST/tax) for revenue reporting
+        const totalRevenue = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount || inv.amount), 0);
         const paidRevenue = invoices
           .filter(inv => inv.status === 'PAID')
-          .reduce((sum, inv) => sum + Number(inv.amount), 0);
+          .reduce((sum, inv) => sum + Number(inv.totalAmount || inv.amount), 0);
         return {
           id: client.id,
           name: client.name,

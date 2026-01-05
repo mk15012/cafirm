@@ -133,6 +133,13 @@ export default function MoreTabScreen() {
             {/* Management Section */}
             <MenuSection title="Management">
               <MenuItem
+                title="Documents"
+                subtitle="Manage all documents"
+                icon="📄"
+                iconColor="#3b82f6"
+                onPress={() => router.push('/documents')}
+              />
+              <MenuItem
                 title="Firms"
                 subtitle="Manage all firms"
                 icon="🏛️"
@@ -376,5 +383,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
 
 

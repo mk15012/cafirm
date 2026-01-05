@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import AppLayout from '@/components/layout/AppLayout';
-import { CheckSquare, Plus, Filter, X, AlertCircle, Calendar, User, Building2, Clock, Users } from 'lucide-react';
+import { CheckSquare, Plus, Filter, X, AlertCircle, Calendar, User, Building2, Clock, Users, RefreshCw, Bell, Sparkles, Pencil, Trash2, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 
@@ -40,7 +40,7 @@ interface Client {
 
 export default function TasksPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, initializeAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, initializeAuth, user } = useAuthStore();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [firms, setFirms] = useState<Firm[]>([]);
@@ -53,6 +53,19 @@ export default function TasksPage() {
   const [pendingStatusChange, setPendingStatusChange] = useState<{ taskId: number; newStatus: string; taskTitle: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [generatingReminders, setGeneratingReminders] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<{ id: number; title: string } | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    priority: 'MEDIUM',
+    assignedToId: '',
+    dueDate: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
   const [formData, setFormData] = useState({
     firmId: '',
     title: '',
@@ -61,6 +74,11 @@ export default function TasksPage() {
     priority: 'MEDIUM',
     dueDate: '',
   });
+
+  const isIndividual = user?.role === 'INDIVIDUAL';
+  const isCA = user?.role === 'CA';
+  const isManager = user?.role === 'MANAGER';
+  const canEdit = isCA || isManager;
 
   // Filter firms based on selected client
   const filteredFirms = useMemo(() => {
@@ -134,6 +152,26 @@ export default function TasksPage() {
     setFormData({ ...formData, firmId: '' });
   };
 
+  const generateReminders = async (forNextYear = false) => {
+    try {
+      setGeneratingReminders(true);
+      const endpoint = forNextYear ? '/tasks/generate-next-year-tasks' : '/tasks/generate-tax-tasks';
+      const response = await api.post(endpoint);
+      toast.success(response.data.message || 'Tax reminders generated successfully!');
+      loadTasks();
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Failed to generate reminders';
+      // If tasks already exist, that's okay - just inform the user
+      if (error.response?.status === 400) {
+        toast.error(errorMsg);
+      } else {
+        toast.error(errorMsg);
+      }
+    } finally {
+      setGeneratingReminders(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -179,6 +217,57 @@ export default function TasksPage() {
       ERROR: 'Error',
     };
     return labels[status] || status;
+  };
+
+  const handleDeleteTask = async () => {
+    if (!taskToDelete) return;
+    try {
+      await api.delete(`/tasks/${taskToDelete.id}`);
+      toast.success('Task deleted successfully');
+      setShowDeleteModal(false);
+      setTaskToDelete(null);
+      loadTasks();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to delete task');
+    }
+  };
+
+  const openEditModal = (task: Task) => {
+    setEditingTask(task);
+    setEditFormData({
+      title: task.title || '',
+      description: task.description || '',
+      priority: task.priority || 'MEDIUM',
+      assignedToId: String(task.assignedTo?.id || ''),
+      dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditTask = async () => {
+    if (!editingTask) return;
+    if (!editFormData.title.trim()) {
+      toast.error('Title is required');
+      return;
+    }
+    try {
+      setSavingEdit(true);
+      await api.put(`/tasks/${editingTask.id}`, {
+        title: editFormData.title,
+        description: editFormData.description,
+        priority: editFormData.priority,
+        assignedToId: editFormData.assignedToId ? parseInt(editFormData.assignedToId) : undefined,
+        dueDate: editFormData.dueDate || undefined,
+      });
+      toast.success('Task updated successfully!');
+      setShowEditModal(false);
+      setEditingTask(null);
+      loadTasks();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to update task');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const getStatusModalVariant = (status: string): 'success' | 'warning' | 'danger' | 'info' => {
@@ -256,47 +345,68 @@ export default function TasksPage() {
   }
 
   return (
-    <AppLayout title="Tasks">
+    <AppLayout title={isIndividual ? "My Reminders" : "Tasks"}>
       {/* Header Actions */}
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-            <CheckSquare className="w-6 h-6 text-white" />
+            {isIndividual ? <Bell className="w-6 h-6 text-white" /> : <CheckSquare className="w-6 h-6 text-white" />}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Tasks</h1>
-            <p className="text-sm text-gray-500">Manage and track all your tasks</p>
+            <h1 className="text-2xl font-bold text-gray-900">{isIndividual ? 'My Reminders' : 'Tasks'}</h1>
+            <p className="text-sm text-gray-500">
+              {isIndividual 
+                ? 'Your tax deadlines and compliance reminders' 
+                : 'Manage and track all your tasks'}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              showFilters || hasActiveFilters
-                ? 'bg-primary-100 text-primary-700 border border-primary-300'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            Filters
-            {hasActiveFilters && (
-              <span className="bg-primary-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                {[filters.status, filters.firmId, filters.assignedToId].filter(Boolean).length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Add Task
-          </button>
+          {!isIndividual && (
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                showFilters || hasActiveFilters
+                  ? 'bg-primary-100 text-primary-700 border border-primary-300'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+              {hasActiveFilters && (
+                <span className="bg-primary-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                  {[filters.status, filters.firmId, filters.assignedToId].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+          )}
+          {isIndividual ? (
+            <button
+              onClick={() => generateReminders(false)}
+              disabled={generatingReminders}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+            >
+              {generatingReminders ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              {generatingReminders ? 'Generating...' : 'Generate Reminders'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Add Task
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filters */}
-      {(showFilters || hasActiveFilters) && (
+      {/* Filters - Only for CA/MANAGER/STAFF */}
+      {!isIndividual && (showFilters || hasActiveFilters) && (
         <div className="mb-6 bg-white p-6 rounded-xl shadow-md border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Filter Tasks</h3>
@@ -367,8 +477,8 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Add Task Form */}
-      {showForm && (
+      {/* Add Task Form - Only for CA/MANAGER/STAFF */}
+      {!isIndividual && showForm && (
         <div className="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">Add New Task</h2>
@@ -533,16 +643,54 @@ export default function TasksPage() {
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
         {tasks.length === 0 ? (
           <div className="text-center py-12">
-            <CheckSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No tasks found</h3>
-            <p className="text-sm text-gray-500 mb-4">Get started by creating your first task</p>
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Task
-            </button>
+            {isIndividual ? (
+              <>
+                <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No reminders yet</h3>
+                <p className="text-sm text-gray-500 mb-2">
+                  Generate your tax deadline reminders for the current financial year
+                </p>
+                <p className="text-xs text-gray-400 mb-6 max-w-md mx-auto">
+                  We&apos;ll automatically create reminders for ITR filing, advance tax payments, 
+                  Form 16 collection, and other important tax deadlines.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={() => generateReminders(false)}
+                    disabled={generatingReminders}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  >
+                    {generatingReminders ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" />
+                    )}
+                    {generatingReminders ? 'Generating...' : 'Generate Current FY Reminders'}
+                  </button>
+                  <button
+                    onClick={() => generateReminders(true)}
+                    disabled={generatingReminders}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Generate Next FY Reminders
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <CheckSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No tasks found</h3>
+                <p className="text-sm text-gray-500 mb-4">Get started by creating your first task</p>
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Task
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -635,12 +783,36 @@ export default function TasksPage() {
                         </select>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <Link
-                          href={`/tasks/${task.id}`}
-                          className="text-primary-600 hover:text-primary-700 font-medium"
-                        >
-                          View
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <Link
+                            href={`/tasks/${task.id}`}
+                            className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+                            title="View"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </Link>
+                          {canEdit && (
+                            <>
+                              <button
+                                onClick={() => openEditModal(task)}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+                                title="Edit"
+                              >
+                                <Pencil className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setTaskToDelete({ id: task.id, title: task.title });
+                                  setShowDeleteModal(true);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -667,6 +839,124 @@ export default function TasksPage() {
           variant={getStatusModalVariant(pendingStatusChange.newStatus)}
           loading={updatingStatus}
         />
+      )}
+
+      {/* Delete Task Modal */}
+      {taskToDelete && (
+        <ConfirmModal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setTaskToDelete(null);
+          }}
+          onConfirm={handleDeleteTask}
+          title="Delete Task?"
+          message={`Are you sure you want to delete "${taskToDelete.title}"? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant="danger"
+        />
+      )}
+
+      {/* Edit Task Modal */}
+      {showEditModal && editingTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">Edit Task</h2>
+              <p className="text-sm text-gray-500 mt-1">{editingTask.firm?.client?.name} → {editingTask.firm?.name}</p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Task title"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Task description..."
+                />
+              </div>
+
+              {/* Priority & Assigned To */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                  <select
+                    value={editFormData.priority}
+                    onChange={(e) => setEditFormData({ ...editFormData, priority: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Assigned To</label>
+                  <select
+                    value={editFormData.assignedToId}
+                    onChange={(e) => setEditFormData({ ...editFormData, assignedToId: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="">Select User</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Due Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                <input
+                  type="date"
+                  value={editFormData.dueDate}
+                  onChange={(e) => setEditFormData({ ...editFormData, dueDate: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingTask(null);
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditTask}
+                disabled={savingEdit}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {savingEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AppLayout>
   );
