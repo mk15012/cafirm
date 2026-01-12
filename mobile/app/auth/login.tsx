@@ -48,6 +48,7 @@ export default function LoginScreen() {
 
   // Common state
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const otpInputs = useRef<(TextInput | null)[]>([]);
 
@@ -60,8 +61,10 @@ export default function LoginScreen() {
 
   // Email login handler
   const handleEmailLogin = async () => {
+    setError('');
+    
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
+      setError('Please enter email and password');
       return;
     }
 
@@ -69,8 +72,13 @@ export default function LoginScreen() {
     try {
       await login(email, password);
       router.replace('/(tabs)');
-    } catch (error: any) {
-      Alert.alert('Login Failed', error.response?.data?.error || 'Invalid credentials');
+    } catch (err: any) {
+      const message = err.response?.data?.error || 'Invalid credentials';
+      setError(message);
+      // Also try Alert for native devices
+      if (Platform.OS !== 'web') {
+        Alert.alert('Login Failed', message);
+      }
     } finally {
       setLoading(false);
     }
@@ -272,7 +280,7 @@ export default function LoginScreen() {
                   placeholder="Enter your email"
                   placeholderTextColor="#9ca3af"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(text) => { setEmail(text); setError(''); }}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
@@ -283,10 +291,19 @@ export default function LoginScreen() {
                   placeholder="Enter your password"
                   placeholderTextColor="#9ca3af"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => { setPassword(text); setError(''); }}
                   secureTextEntry
                   autoComplete="password"
                 />
+
+                {/* Error Message Display */}
+                {error ? (
+                  <View style={styles.errorBox}>
+                    <MaterialCommunityIcons name="alert-circle" size={18} color="#dc2626" />
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                ) : null}
+
                 <TouchableOpacity
                   style={[styles.button, loading && styles.buttonDisabled]}
                   onPress={handleEmailLogin}
@@ -628,6 +645,22 @@ const styles = StyleSheet.create({
     color: '#0ea5e9',
     fontSize: 14,
     fontWeight: '600',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 14,
+    flex: 1,
   },
   otpTitle: {
     fontSize: 20,
