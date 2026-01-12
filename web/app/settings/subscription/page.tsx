@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, Crown, Zap, Building2, Rocket, ArrowRight, AlertCircle, CreditCard, Calendar } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
 import api from '@/lib/api';
@@ -60,7 +61,8 @@ const planColors: Record<string, string> = {
 };
 
 export default function SubscriptionSettingsPage() {
-  const { user } = useAuthStore();
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading, initializeAuth } = useAuthStore();
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('yearly');
@@ -69,8 +71,14 @@ export default function SubscriptionSettingsPage() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
+    initializeAuth();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      loadData();
+    }
+  }, [isLoading, isAuthenticated]);
 
   const loadData = async () => {
     try {
@@ -201,6 +209,24 @@ export default function SubscriptionSettingsPage() {
     return 'bg-primary-500';
   };
 
+  // Redirect to login if not authenticated
+  if (!isLoading && !isAuthenticated) {
+    router.push('/auth/login');
+    return null;
+  }
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return (
+      <AppLayout title="Subscription">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Check CA access only after auth is confirmed
   if (user?.role !== 'CA') {
     return (
       <AppLayout title="Subscription">

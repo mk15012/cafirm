@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Edit, Trash2, Package, AlertCircle, IndianRupee, RefreshCw, Loader2 } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
 import api from '@/lib/api';
@@ -49,7 +50,8 @@ const getFrequencyLabel = (frequency: string) => {
 };
 
 export default function ServicesSettingsPage() {
-  const { user } = useAuthStore();
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading, initializeAuth } = useAuthStore();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -58,6 +60,10 @@ export default function ServicesSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [deletingService, setDeletingService] = useState<Service | null>(null);
   const [showSeedConfirm, setShowSeedConfirm] = useState(false);
+
+  useEffect(() => {
+    initializeAuth();
+  }, []);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -200,6 +206,24 @@ export default function ServicesSettingsPage() {
     return acc;
   }, {} as Record<string, Service[]>);
 
+  // Redirect to login if not authenticated
+  if (!isLoading && !isAuthenticated) {
+    router.push('/auth/login');
+    return null;
+  }
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return (
+      <AppLayout title="Services & Pricing">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Check CA access only after auth is confirmed
   if (user?.role !== 'CA') {
     return (
       <AppLayout title="Services & Pricing">
