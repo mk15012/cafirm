@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
+import UpgradeModal from '@/components/UpgradeModal';
 
 interface Client {
   id: number;
@@ -23,14 +24,48 @@ export default function ClientsTabScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{
+    currentUsage: number;
+    limit: number;
+    plan: string;
+    canAdd: boolean;
+  } | null>(null);
 
   const isIndividual = user?.role === 'INDIVIDUAL';
+  const isCA = user?.role === 'CA';
 
   useEffect(() => {
     if (isAuthenticated && !isIndividual) {
       loadClients();
+      if (isCA) {
+        checkClientLimit();
+      }
     }
-  }, [isAuthenticated, isIndividual]);
+  }, [isAuthenticated, isIndividual, isCA]);
+
+  const checkClientLimit = async () => {
+    try {
+      const response = await api.get('/subscription/check/clients');
+      setSubscriptionInfo({
+        currentUsage: response.data.currentUsage,
+        limit: response.data.limit === 'Unlimited' ? -1 : response.data.limit,
+        plan: response.data.currentPlan,
+        canAdd: response.data.canProceed,
+      });
+    } catch (error) {
+      console.error('Failed to check subscription limit:', error);
+      setSubscriptionInfo({ currentUsage: 0, limit: -1, plan: 'FREE', canAdd: true });
+    }
+  };
+
+  const handleAddClientClick = () => {
+    if (subscriptionInfo && !subscriptionInfo.canAdd) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    router.push('/clients/add');
+  };
 
   // Redirect individual users away
   useEffect(() => {
@@ -88,7 +123,7 @@ export default function ClientsTabScreen() {
           </View>
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => router.push('/clients/add')}
+            onPress={handleAddClientClick}
           >
             <Text style={styles.addButtonText}>+ Add</Text>
           </TouchableOpacity>
@@ -147,6 +182,16 @@ export default function ClientsTabScreen() {
         )}
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        resource="clients"
+        currentUsage={subscriptionInfo?.currentUsage || 0}
+        limit={subscriptionInfo?.limit === -1 ? 999 : subscriptionInfo?.limit || 0}
+        currentPlan={subscriptionInfo?.plan || 'FREE'}
+      />
     </SafeAreaView>
   );
 }

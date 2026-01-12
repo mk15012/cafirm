@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
+import UpgradeModal from '@/components/UpgradeModal';
 
 interface UserData {
   id: string;
@@ -26,6 +27,13 @@ export default function UsersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', email: '', password: '', phone: '', role: 'STAFF' });
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{
+    currentUsage: number;
+    limit: number;
+    plan: string;
+    canAdd: boolean;
+  } | null>(null);
 
   // Filter users based on search
   const filteredUsers = users.filter(u =>
@@ -44,7 +52,37 @@ export default function UsersScreen() {
       return;
     }
     loadUsers();
+    checkUserLimit();
   }, [isAuthenticated, user]);
+
+  const checkUserLimit = async () => {
+    try {
+      const response = await api.get('/subscription/check/users');
+      setSubscriptionInfo({
+        currentUsage: response.data.currentUsage,
+        limit: response.data.limit === 'Unlimited' ? -1 : response.data.limit,
+        plan: response.data.currentPlan,
+        canAdd: response.data.canProceed,
+      });
+    } catch (error) {
+      console.error('Failed to check subscription limit:', error);
+      setSubscriptionInfo({ currentUsage: 0, limit: -1, plan: 'FREE', canAdd: true });
+    }
+  };
+
+  const handleAddUserClick = () => {
+    if (subscriptionInfo && !subscriptionInfo.canAdd) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    openAddForm();
+  };
+
+  const openAddForm = () => {
+    setEditingUser(null);
+    setFormData({ name: '', email: '', password: '', phone: '', role: 'STAFF' });
+    setShowForm(true);
+  };
 
   const loadUsers = async () => {
     try {
@@ -194,7 +232,7 @@ export default function UsersScreen() {
           <Text style={styles.title}>Users</Text>
           <Text style={styles.subtitle}>{users.length} total</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowForm(true)} style={styles.headerButton}>
+        <TouchableOpacity onPress={handleAddUserClick} style={styles.headerButton}>
           <Text style={styles.addButton}>+ Add</Text>
         </TouchableOpacity>
       </View>
@@ -338,7 +376,7 @@ export default function UsersScreen() {
                   <Text style={styles.clearSearchLink}>Clear search</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity style={styles.emptyButton} onPress={() => setShowForm(true)}>
+                <TouchableOpacity style={styles.emptyButton} onPress={handleAddUserClick}>
                   <Text style={styles.emptyButtonText}>+ Add User</Text>
                 </TouchableOpacity>
               )}
@@ -438,6 +476,16 @@ export default function UsersScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        resource="users"
+        currentUsage={subscriptionInfo?.currentUsage || 0}
+        limit={subscriptionInfo?.limit === -1 ? 999 : subscriptionInfo?.limit || 0}
+        currentPlan={subscriptionInfo?.plan || 'FREE'}
+      />
     </SafeAreaView>
   );
 }

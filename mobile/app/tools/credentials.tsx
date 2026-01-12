@@ -6,6 +6,7 @@ import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import { Picker } from '@react-native-picker/picker';
 import * as Clipboard from 'expo-clipboard';
+import UpgradeModal from '@/components/UpgradeModal';
 
 interface Credential {
   id: number;
@@ -48,8 +49,17 @@ export default function CredentialsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPortalFilter, setSelectedPortalFilter] = useState('All');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<number>>(new Set());
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{
+    currentUsage: number;
+    limit: number;
+    plan: string;
+    canAdd: boolean;
+  } | null>(null);
   
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const isCA = user?.role === 'CA';
+  const isIndividual = user?.role === 'INDIVIDUAL';
   const [formData, setFormData] = useState({
     clientId: '',
     firmId: '',

@@ -29,11 +29,23 @@ interface Client {
   firms: Firm[];
 }
 
+interface Deadline {
+  id: string;
+  title: string;
+  type: string;
+  firmId: number;
+  firmName: string;
+  dueDate: string;
+  daysUntilDue: number;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
 export default function ClientDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { isAuthenticated, user } = useAuthStore();
   const [client, setClient] = useState<Client | null>(null);
+  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFirmForm, setShowFirmForm] = useState(false);
@@ -67,12 +79,24 @@ export default function ClientDetailScreen() {
       setLoading(true);
       const response = await api.get(`/clients/${params.id}`);
       setClient(response.data);
+      // Load deadlines
+      loadDeadlines();
     } catch (error: any) {
       console.error('Failed to load client:', error);
       Alert.alert('Error', error.response?.data?.error || 'Failed to load client');
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const loadDeadlines = async () => {
+    try {
+      const response = await api.get(`/clients/${params.id}/deadlines`);
+      setDeadlines(response.data.deadlines || []);
+    } catch (error: any) {
+      console.error('Failed to load deadlines:', error);
+      setDeadlines([]);
     }
   };
 
@@ -392,6 +416,77 @@ export default function ClientDetailScreen() {
             <Text style={styles.emptyText}>No firms found</Text>
           )}
         </View>
+
+        {/* Upcoming Deadlines Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Upcoming Deadlines</Text>
+            <Text style={styles.deadlineCount}>{deadlines.length} upcoming</Text>
+          </View>
+
+          {deadlines.length === 0 ? (
+            <View style={styles.emptyDeadlines}>
+              <Text style={styles.emptyDeadlinesIcon}>📅</Text>
+              <Text style={styles.emptyDeadlinesText}>No upcoming compliance deadlines</Text>
+              <Text style={styles.emptyDeadlinesSubtext}>Configure compliance settings for firms to see deadlines</Text>
+            </View>
+          ) : (
+            deadlines.slice(0, 10).map((deadline) => {
+              const isUrgent = deadline.daysUntilDue <= 7;
+              const dueDate = new Date(deadline.dueDate);
+              const formattedDate = dueDate.toLocaleDateString('en-IN', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric' 
+              });
+
+              return (
+                <View
+                  key={deadline.id}
+                  style={[
+                    styles.deadlineCard,
+                    isUrgent && styles.deadlineCardUrgent,
+                  ]}
+                >
+                  <View style={styles.deadlineLeft}>
+                    <View style={[styles.deadlineIcon, isUrgent && styles.deadlineIconUrgent]}>
+                      <Text style={styles.deadlineIconText}>⏰</Text>
+                    </View>
+                    <View style={styles.deadlineInfo}>
+                      <Text style={[styles.deadlineTitle, isUrgent && styles.deadlineTitleUrgent]}>
+                        {deadline.title}
+                      </Text>
+                      <View style={styles.deadlineMeta}>
+                        <Text style={styles.deadlineFirm}>{deadline.firmName}</Text>
+                        <View style={styles.deadlineTypeBadge}>
+                          <Text style={styles.deadlineTypeText}>{deadline.type}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.deadlineRight}>
+                    <Text style={[styles.deadlineDate, isUrgent && styles.deadlineDateUrgent]}>
+                      {formattedDate}
+                    </Text>
+                    <Text style={[
+                      styles.deadlineDays,
+                      deadline.daysUntilDue === 0 && styles.deadlineDaysToday,
+                      deadline.daysUntilDue <= 7 && deadline.daysUntilDue > 0 && styles.deadlineDaysUrgent,
+                    ]}>
+                      {deadline.daysUntilDue === 0 ? 'Due today!' :
+                       deadline.daysUntilDue === 1 ? 'Due tomorrow' :
+                       `${deadline.daysUntilDue} days left`}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
+
+          {deadlines.length > 10 && (
+            <Text style={styles.moreDeadlines}>+ {deadlines.length - 10} more deadlines</Text>
+          )}
+        </View>
       </View>
       </ScrollView>
     </SafeAreaView>
@@ -660,6 +755,132 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     padding: 16,
+  },
+  // Deadline styles
+  deadlineCount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#f97316',
+    backgroundColor: '#fff7ed',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  emptyDeadlines: {
+    alignItems: 'center',
+    padding: 24,
+  },
+  emptyDeadlinesIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  emptyDeadlinesText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  emptyDeadlinesSubtext: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  deadlineCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+  },
+  deadlineCardUrgent: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  deadlineLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  deadlineIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  deadlineIconUrgent: {
+    backgroundColor: '#fecaca',
+  },
+  deadlineIconText: {
+    fontSize: 16,
+  },
+  deadlineInfo: {
+    flex: 1,
+  },
+  deadlineTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  deadlineTitleUrgent: {
+    color: '#991b1b',
+  },
+  deadlineMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deadlineFirm: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  deadlineTypeBadge: {
+    backgroundColor: '#e5e7eb',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  deadlineTypeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  deadlineRight: {
+    alignItems: 'flex-end',
+    marginLeft: 8,
+  },
+  deadlineDate: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#4b5563',
+  },
+  deadlineDateUrgent: {
+    color: '#991b1b',
+  },
+  deadlineDays: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  deadlineDaysToday: {
+    color: '#dc2626',
+  },
+  deadlineDaysUrgent: {
+    color: '#ea580c',
+  },
+  moreDeadlines: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 8,
   },
 });
 
