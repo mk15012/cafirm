@@ -207,15 +207,15 @@ export async function createFirm(req: Request, res: Response) {
       return res.status(403).json({ error: 'Cannot assign to user outside your organization' });
     }
 
-    // Create firm
+    // Create firm - convert empty strings to null for optional unique fields
     const firm = await prisma.firm.create({
       data: {
         clientId: parsedClientId,
         name,
         panNumber,
-        gstNumber,
-        registrationNumber,
-        address,
+        gstNumber: gstNumber?.trim() || null,
+        registrationNumber: registrationNumber?.trim() || null,
+        address: address?.trim() || null,
         createdById: user.userId,
       },
       include: {
@@ -362,9 +362,9 @@ export async function updateFirm(req: Request, res: Response) {
       data: {
         name,
         panNumber,
-        gstNumber,
-        registrationNumber,
-        address,
+        gstNumber: gstNumber?.trim() || null,
+        registrationNumber: registrationNumber?.trim() || null,
+        address: address?.trim() || null,
         status,
       },
       include: {

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
 import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
+import { checkSubscriptionLimit } from '../utils/subscriptionLimits';
 import crypto from 'crypto';
 
 // Encryption key for storing portal credentials
@@ -162,17 +163,19 @@ export async function createCredential(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (user.role !== 'CA') {
-      return res.status(403).json({ error: 'Only CA can manage portal credentials' });
+    // CA and INDIVIDUAL users can manage their own credentials
+    if (user.role !== 'CA' && user.role !== 'INDIVIDUAL') {
+      return res.status(403).json({ error: 'Only CA or Individual users can manage portal credentials' });
     }
 
     const { clientId, firmId, portalName, portalUrl, username, password, remarks } = req.body;
 
-    if (!clientId || !portalName || !username || !password) {
-      return res.status(400).json({ error: 'Client, portal name, username, and password are required' });
+    // Validate required fields - clientId is optional for INDIVIDUAL users (auto-created)
+    if (!portalName || !username || !password) {
+      return res.status(400).json({ error: 'Portal name, username, and password are required' });
     }
 
-    const parsedClientId = typeof clientId === 'string' ? parseInt(clientId, 10) : clientId;
+    let parsedClientId: number;
     const parsedFirmId = firmId ? (typeof firmId === 'string' ? parseInt(firmId, 10) : firmId) : null;
 
     const caId = await getRootCAId(user.userId);
@@ -180,16 +183,74 @@ export async function createCredential(req: Request, res: Response) {
       return res.status(403).json({ error: 'Unable to determine organization' });
     }
 
+    // Check subscription limit for credentials
+    const limitCheck = await checkSubscriptionLimit(caId, 'credentials');
+    if (!limitCheck.allowed) {
+      return res.status(403).json({ 
+        error: limitCheck.message,
+        limitReached: true,
+        currentUsage: limitCheck.currentUsage,
+        limit: limitCheck.limit,
+        planName: limitCheck.planName,
+      });
+    }
+
     const orgUserIds = await getCAOrganizationUserIds(caId);
 
-    // Verify client belongs to organization
-    const client = await prisma.client.findUnique({
-      where: { id: parsedClientId },
-      select: { createdById: true },
-    });
+    // For INDIVIDUAL users without a clientId, auto-create or find their personal client
+    if (!clientId && user.role === 'INDIVIDUAL') {
+      // Find existing personal client or create one
+      let personalClient = await prisma.client.findFirst({
+        where: { createdById: user.userId },
+        select: { id: true, email: true, phone: true, contactPerson: true },
+      });
 
-    if (!client || !orgUserIds.includes(client.createdById)) {
-      return res.status(403).json({ error: 'Client does not belong to your organization' });
+      // Get user details to populate client fields
+      const userData = await prisma.user.findUnique({
+        where: { id: user.userId },
+        select: { name: true, email: true, phone: true },
+      });
+
+      if (!personalClient) {
+        // Create new personal client with user's details
+        personalClient = await prisma.client.create({
+          data: {
+            name: userData?.name || 'Personal',
+            contactPerson: userData?.name || null,
+            email: userData?.email || null,
+            phone: userData?.phone || null,
+            notes: 'Auto-created for personal credential management',
+            createdById: user.userId,
+          },
+          select: { id: true, email: true, phone: true, contactPerson: true },
+        });
+      } else if (!personalClient.email || !personalClient.phone || !personalClient.contactPerson) {
+        // Update existing client if fields are missing
+        await prisma.client.update({
+          where: { id: personalClient.id },
+          data: {
+            contactPerson: personalClient.contactPerson || userData?.name || null,
+            email: personalClient.email || userData?.email || null,
+            phone: personalClient.phone || userData?.phone || null,
+          },
+        });
+      }
+
+      parsedClientId = personalClient.id;
+    } else if (!clientId) {
+      return res.status(400).json({ error: 'Client is required' });
+    } else {
+      parsedClientId = typeof clientId === 'string' ? parseInt(clientId, 10) : clientId;
+
+      // Verify client belongs to organization
+      const client = await prisma.client.findUnique({
+        where: { id: parsedClientId },
+        select: { createdById: true },
+      });
+
+      if (!client || !orgUserIds.includes(client.createdById)) {
+        return res.status(403).json({ error: 'Client does not belong to your organization' });
+      }
     }
 
     // If firmId provided, verify it belongs to the client
@@ -238,8 +299,9 @@ export async function updateCredential(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (user.role !== 'CA') {
-      return res.status(403).json({ error: 'Only CA can manage portal credentials' });
+    // CA and INDIVIDUAL users can manage their own credentials
+    if (user.role !== 'CA' && user.role !== 'INDIVIDUAL') {
+      return res.status(403).json({ error: 'Only CA or Individual users can manage portal credentials' });
     }
 
     const { id } = req.params;
@@ -306,8 +368,9 @@ export async function deleteCredential(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (user.role !== 'CA') {
-      return res.status(403).json({ error: 'Only CA can manage portal credentials' });
+    // CA and INDIVIDUAL users can manage their own credentials
+    if (user.role !== 'CA' && user.role !== 'INDIVIDUAL') {
+      return res.status(403).json({ error: 'Only CA or Individual users can manage portal credentials' });
     }
 
     const { id } = req.params;

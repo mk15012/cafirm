@@ -334,7 +334,7 @@ export default function HomePage() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   {/* Android Button */}
                   <a
-                    href="https://expo.dev/artifacts/eas/vEz3WWppVi1PLKpLFg86xn.apk"
+                    href="https://expo.dev/artifacts/eas/j33Wyzh3vQEwzRLVvAhQRA.apk"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-3 px-6 py-4 bg-white text-slate-900 font-semibold rounded-xl hover:bg-slate-100 transition-all shadow-lg group"
@@ -351,7 +351,7 @@ export default function HomePage() {
                   
                   {/* iOS Button */}
                   <a
-                    href="https://expo.dev/artifacts/eas/vEz3WWppVi1PLKpLFg86xn.apk"
+                    href="https://expo.dev/artifacts/eas/j33Wyzh3vQEwzRLVvAhQRA.apk"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-3 px-6 py-4 bg-white/10 backdrop-blur-sm text-white font-semibold rounded-xl border border-white/20 hover:bg-white/20 transition-all group"

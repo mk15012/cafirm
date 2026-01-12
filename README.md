@@ -95,7 +95,36 @@ This creates test users with sample data:
 ### Login
 Visit http://localhost:3000/auth/login and use your credentials.
 
+### Forgot Password
+Users can reset their password by clicking "Forgot your password?" on the login page.
+
 See [WEB_APP_SETUP.md](./WEB_APP_SETUP.md) for detailed setup and login instructions.
+
+## 📧 Email Configuration (Required for Password Reset)
+
+To enable password reset emails, configure Gmail SMTP in your backend `.env` file:
+
+### Step 1: Create Gmail App Password
+1. Go to [Google Account Security](https://myaccount.google.com/security)
+2. Enable **2-Step Verification** (required)
+3. Go to [App Passwords](https://myaccount.google.com/apppasswords)
+4. Select app: **Mail**, device: **Other** (enter "CA Firm Pro")
+5. Click **Generate** and copy the 16-character password
+
+### Step 2: Add to .env
+```bash
+# Email Configuration
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=xxxx-xxxx-xxxx-xxxx   # The 16-char app password from Step 1
+EMAIL_FROM=your-email@gmail.com
+EMAIL_FROM_NAME=CA Firm Pro
+```
+
+### Testing
+- **Without email configured**: Reset codes are shown on screen for testing
+- **With email configured**: Codes are sent via email, not shown on screen
 
 ## 📚 Documentation
 

@@ -11,20 +11,20 @@ async function main() {
     {
       code: 'FREE',
       name: 'Starter',
-      description: 'Perfect for individual CAs just getting started',
+      description: 'Try out the platform with limited features',
       monthlyPricePaise: 0,
       yearlyPricePaise: 0,
-      maxClients: 10,
-      maxFirmsPerClient: 10, // Limited to encourage upgrade
-      maxUsers: 2,
-      maxStorageMB: 512, // 512MB
-      maxCredentials: 20,
+      maxClients: 3,           // Reduced from 10 to encourage upgrades
+      maxFirmsPerClient: 3,    // Reduced from 10
+      maxUsers: 1,             // Reduced from 2 (just the CA)
+      maxStorageMB: 100,       // Reduced from 512MB
+      maxCredentials: 10,      // Reduced from 20
       features: JSON.stringify({
         taxCalculator: true,
         approvalWorkflow: false,
         activityLogs: false,
         documentManagement: true,
-        invoiceManagement: true,
+        invoiceManagement: false, // Disabled for free
         meetings: false,
         customBranding: false,
         apiAccess: false,
@@ -40,11 +40,11 @@ async function main() {
       description: 'For small CA practices with growing client base',
       monthlyPricePaise: 49900, // ₹499
       yearlyPricePaise: 499900, // ₹4,999 (2 months free)
-      maxClients: 50,
-      maxFirmsPerClient: 50,
-      maxUsers: 5,
-      maxStorageMB: 5120, // 5GB
-      maxCredentials: 100,
+      maxClients: 25,
+      maxFirmsPerClient: 25,
+      maxUsers: 3,
+      maxStorageMB: 2048,      // 2GB
+      maxCredentials: 50,
       features: JSON.stringify({
         taxCalculator: true,
         approvalWorkflow: true,
@@ -66,11 +66,11 @@ async function main() {
       description: 'For established CA firms with multiple team members',
       monthlyPricePaise: 99900, // ₹999
       yearlyPricePaise: 999900, // ₹9,999 (2 months free)
-      maxClients: 200,
-      maxFirmsPerClient: 200,
-      maxUsers: 15,
-      maxStorageMB: 20480, // 20GB
-      maxCredentials: 400,
+      maxClients: 100,
+      maxFirmsPerClient: 100,
+      maxUsers: 10,
+      maxStorageMB: 10240,     // 10GB
+      maxCredentials: 200,
       features: JSON.stringify({
         taxCalculator: true,
         approvalWorkflow: true,

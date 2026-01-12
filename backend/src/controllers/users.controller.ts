@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma';
 import { hashPassword } from '../utils/bcrypt';
 import { AuthRequest } from '../types';
 import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
+import { checkSubscriptionLimit } from '../utils/subscriptionLimits';
 
 export async function getUsers(req: Request, res: Response) {
   try {
@@ -135,6 +136,18 @@ export async function createUser(req: Request, res: Response) {
     const caId = await getRootCAId(requestingUser.userId);
     if (!caId) {
       return res.status(403).json({ error: 'Unable to determine organization' });
+    }
+
+    // Check subscription limit for users
+    const limitCheck = await checkSubscriptionLimit(caId, 'users');
+    if (!limitCheck.allowed) {
+      return res.status(403).json({ 
+        error: limitCheck.message,
+        limitReached: true,
+        currentUsage: limitCheck.currentUsage,
+        limit: limitCheck.limit,
+        planName: limitCheck.planName,
+      });
     }
 
     // Get all user IDs in this CA's organization

@@ -526,6 +526,7 @@ async function getTeamUserIds(managerId: number): Promise<number[]> {
 /**
  * Generate tax deadline tasks for INDIVIDUAL users
  * Can be used to regenerate tasks for current or next FY
+ * Supports forceRegenerate to delete existing tasks and create fresh ones
  */
 export async function generateTaxTasks(req: Request, res: Response) {
   try {
@@ -544,7 +545,7 @@ export async function generateTaxTasks(req: Request, res: Response) {
       return res.status(403).json({ error: 'This feature is only for Individual users' });
     }
 
-    const { financialYear } = req.body;
+    const { financialYear, forceRegenerate } = req.body;
     const targetFY = financialYear || getCurrentFinancialYear();
 
     // Find the user's personal firm
@@ -559,7 +560,7 @@ export async function generateTaxTasks(req: Request, res: Response) {
       return res.status(404).json({ error: 'Personal firm not found. Please contact support.' });
     }
 
-    // Check for existing tasks in this FY to avoid duplicates
+    // Check for existing tasks in this FY
     const existingTasks = await prisma.task.findMany({
       where: {
         firmId: firm.id,
@@ -568,10 +569,23 @@ export async function generateTaxTasks(req: Request, res: Response) {
     });
 
     if (existingTasks.length > 0) {
-      return res.status(400).json({ 
-        error: `Tasks for FY ${targetFY} already exist. Delete them first if you want to regenerate.`,
-        existingCount: existingTasks.length,
-      });
+      if (forceRegenerate) {
+        // Delete existing tasks for this FY
+        await prisma.task.deleteMany({
+          where: {
+            firmId: firm.id,
+            title: { contains: `FY ${targetFY}` },
+          },
+        });
+        console.log(`Deleted ${existingTasks.length} existing tasks for FY ${targetFY} before regeneration`);
+      } else {
+        return res.status(400).json({ 
+          error: `Tasks for FY ${targetFY} already exist.`,
+          existingCount: existingTasks.length,
+          canRegenerate: true,
+          message: 'Use "Regenerate" to delete existing tasks and create fresh ones.',
+        });
+      }
     }
 
     // Generate and create tasks
@@ -587,10 +601,12 @@ export async function generateTaxTasks(req: Request, res: Response) {
       data: taskData,
     });
 
+    const action = existingTasks.length > 0 && forceRegenerate ? 'Regenerated' : 'Created';
     res.status(201).json({
-      message: `Created ${taskData.length} tax deadline tasks for FY ${targetFY}`,
+      message: `${action} ${taskData.length} tax deadline tasks for FY ${targetFY}`,
       count: taskData.length,
       financialYear: targetFY,
+      regenerated: forceRegenerate || false,
     });
   } catch (error) {
     console.error('Generate tax tasks error:', error);

@@ -48,7 +48,7 @@ export default function TasksPage() {
   const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({ status: '', firmId: '', assignedToId: '' });
+  const [filters, setFilters] = useState({ status: '', firmId: '', assignedToId: '', fy: '' });
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [pendingStatusChange, setPendingStatusChange] = useState<{ taskId: number; newStatus: string; taskTitle: string } | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -85,6 +85,24 @@ export default function TasksPage() {
     if (!selectedClientId) return [];
     return firms.filter(firm => firm.client.id === parseInt(selectedClientId));
   }, [firms, selectedClientId]);
+
+  // Extract unique FYs from task titles (e.g., "FY 2025-26")
+  const availableFYs = useMemo(() => {
+    const fySet = new Set<string>();
+    tasks.forEach(task => {
+      const match = task.title.match(/FY (\d{4}-\d{2})/);
+      if (match) {
+        fySet.add(match[1]);
+      }
+    });
+    return Array.from(fySet).sort().reverse(); // Most recent first
+  }, [tasks]);
+
+  // Filter tasks by FY (client-side filter since FY is in title)
+  const filteredTasks = useMemo(() => {
+    if (!filters.fy) return tasks;
+    return tasks.filter(task => task.title.includes(`FY ${filters.fy}`));
+  }, [tasks, filters.fy]);
 
   useEffect(() => {
     initializeAuth();
@@ -175,7 +193,21 @@ export default function TasksPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/tasks', formData);
+      let taskData = { ...formData };
+      
+      // For individuals, auto-fill firmId and assignedToId
+      if (isIndividual) {
+        // Get the user's personal firm
+        const personalFirm = firms.find(f => f.name === 'Personal');
+        if (personalFirm) {
+          taskData.firmId = String(personalFirm.id);
+        } else if (firms.length > 0) {
+          taskData.firmId = String(firms[0].id);
+        }
+        taskData.assignedToId = String(user?.id || '');
+      }
+      
+      await api.post('/tasks', taskData);
       toast.success('Task created successfully!');
       setShowForm(false);
       setSelectedClientId('');
@@ -322,10 +354,10 @@ export default function TasksPage() {
   };
 
   const clearFilters = () => {
-    setFilters({ status: '', firmId: '', assignedToId: '' });
+    setFilters({ status: '', firmId: '', assignedToId: '', fy: '' });
   };
 
-  const hasActiveFilters = filters.status || filters.firmId || filters.assignedToId;
+  const hasActiveFilters = filters.status || filters.firmId || filters.assignedToId || filters.fy;
 
   if (isLoading || loading) {
     return (
@@ -375,24 +407,33 @@ export default function TasksPage() {
               Filters
               {hasActiveFilters && (
                 <span className="bg-primary-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                  {[filters.status, filters.firmId, filters.assignedToId].filter(Boolean).length}
+                  {[filters.status, filters.firmId, filters.assignedToId, filters.fy].filter(Boolean).length}
                 </span>
               )}
             </button>
           )}
           {isIndividual ? (
-            <button
-              onClick={() => generateReminders(false)}
-              disabled={generatingReminders}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
-            >
-              {generatingReminders ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-              {generatingReminders ? 'Generating...' : 'Generate Reminders'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                Add Task
+              </button>
+              <button
+                onClick={() => generateReminders(false)}
+                disabled={generatingReminders}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {generatingReminders ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                {generatingReminders ? 'Generating...' : 'Generate Reminders'}
+              </button>
+            </div>
           ) : (
             <button
               onClick={() => setShowForm(true)}
@@ -474,6 +515,117 @@ export default function TasksPage() {
               </select>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* FY Filter for Individuals */}
+      {isIndividual && availableFYs.length > 0 && (
+        <div className="mb-4 flex items-center gap-4">
+          <label className="text-sm font-medium text-gray-700">Filter by Year:</label>
+          <select
+            value={filters.fy}
+            onChange={(e) => setFilters({ ...filters, fy: e.target.value })}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+          >
+            <option value="">All Years</option>
+            {availableFYs.map((fy) => (
+              <option key={fy} value={fy}>
+                FY {fy}
+              </option>
+            ))}
+          </select>
+          {filters.fy && (
+            <button
+              onClick={() => setFilters({ ...filters, fy: '' })}
+              className="text-sm text-primary-600 hover:text-primary-700"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Add Task Form for Individuals - Simplified */}
+      {isIndividual && showForm && (
+        <div className="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900">Add Custom Task</h2>
+            <button
+              onClick={() => {
+                setShowForm(false);
+                setFormData({ firmId: '', title: '', description: '', assignedToId: '', priority: 'MEDIUM', dueDate: '' });
+              }}
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Task Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="e.g., Submit rent receipts, Review investments"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Priority *</label>
+                <select
+                  required
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Due Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.dueDate}
+                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Optional notes"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+              >
+                Create Task
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  setFormData({ firmId: '', title: '', description: '', assignedToId: '', priority: 'MEDIUM', dueDate: '' });
+                }}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -641,9 +793,24 @@ export default function TasksPage() {
 
       {/* Tasks List */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-        {tasks.length === 0 ? (
+        {filteredTasks.length === 0 ? (
           <div className="text-center py-12">
-            {isIndividual ? (
+            {/* Show different message if filtering but no results vs no tasks at all */}
+            {filters.fy && tasks.length > 0 ? (
+              <>
+                <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No tasks for FY {filters.fy}</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Try selecting a different financial year or clear the filter
+                </p>
+                <button
+                  onClick={() => setFilters({ ...filters, fy: '' })}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  Show All Tasks
+                </button>
+              </>
+            ) : isIndividual ? (
               <>
                 <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No reminders yet</h3>
@@ -707,7 +874,7 @@ export default function TasksPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {tasks.map((task) => {
+                {filteredTasks.map((task) => {
                   const overdue = isOverdue(task.dueDate) && task.status !== 'COMPLETED';
                   return (
                     <tr

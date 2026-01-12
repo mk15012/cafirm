@@ -8,6 +8,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { User, Plus, X, Mail, Phone, Shield, UserCheck, Edit, Trash2, Users as UsersIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '@/components/ui/ConfirmModal';
+import UpgradeModal from '@/components/UpgradeModal';
 
 interface UserData {
   id: string;
@@ -37,9 +38,48 @@ export default function UsersPage() {
     reportsToId: '',
   });
 
+  // Subscription limit checking
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{
+    currentUsage: number;
+    limit: number;
+    plan: string;
+    canAdd: boolean;
+  } | null>(null);
+
   useEffect(() => {
     initializeAuth();
   }, []);
+
+  // Load subscription limits
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'CA') {
+      checkUserLimit();
+    }
+  }, [isAuthenticated, user]);
+
+  const checkUserLimit = async () => {
+    try {
+      const response = await api.get('/subscription/check/users');
+      setSubscriptionInfo({
+        currentUsage: response.data.currentUsage,
+        limit: response.data.limit === 'Unlimited' ? -1 : response.data.limit,
+        plan: response.data.currentPlan,
+        canAdd: response.data.canProceed,
+      });
+    } catch (error) {
+      console.error('Failed to check subscription limit:', error);
+      setSubscriptionInfo({ currentUsage: 0, limit: -1, plan: 'FREE', canAdd: true });
+    }
+  };
+
+  const handleAddUserClick = () => {
+    if (subscriptionInfo && !subscriptionInfo.canAdd) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    setShowForm(true);
+  };
 
   useEffect(() => {
     if (!isLoading) {
@@ -185,7 +225,7 @@ export default function UsersPage() {
           onClick={() => {
             setEditingUser(null);
             setFormData({ name: '', email: '', password: '', phone: '', role: 'STAFF', reportsToId: '' });
-            setShowForm(true);
+            handleAddUserClick();
           }}
           className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
         >
@@ -347,7 +387,7 @@ export default function UsersPage() {
             onClick={() => {
               setEditingUser(null);
               setFormData({ name: '', email: '', password: '', phone: '', role: 'STAFF', reportsToId: '' });
-              setShowForm(true);
+              handleAddUserClick();
             }}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
@@ -463,6 +503,16 @@ export default function UsersPage() {
         confirmText={togglingUser?.status === 'ACTIVE' ? 'Yes, Deactivate' : 'Yes, Activate'}
         cancelText="Cancel"
         variant={togglingUser?.status === 'ACTIVE' ? 'warning' : 'success'}
+      />
+
+      {/* Upgrade Modal - Shows when user limit is reached */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        resource="users"
+        currentUsage={subscriptionInfo?.currentUsage || 0}
+        limit={subscriptionInfo?.limit === -1 ? 999 : (subscriptionInfo?.limit || 1)}
+        currentPlan={subscriptionInfo?.plan || 'FREE'}
       />
     </AppLayout>
   );

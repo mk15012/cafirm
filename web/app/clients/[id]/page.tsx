@@ -6,7 +6,8 @@ import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import Link from 'next/link';
 import AppLayout from '@/components/layout/AppLayout';
-import { ArrowLeft, Building2, Mail, Phone, MapPin, FileText, Plus, X, Users, CheckCircle, Edit2, Trash2, ChevronUp, ChevronDown, Eye } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, Phone, MapPin, FileText, Plus, X, Users, CheckCircle, Edit2, Trash2, ChevronUp, ChevronDown, Eye, Calendar, AlertCircle, Clock } from 'lucide-react';
+import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 
@@ -34,6 +35,17 @@ interface Client {
   firms: Firm[];
 }
 
+interface Deadline {
+  id: string;
+  title: string;
+  type: string;
+  firmId: number;
+  firmName: string;
+  dueDate: string;
+  daysUntilDue: number;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
 type SortField = 'name' | 'panNumber' | 'status' | 'tasks';
 type SortDirection = 'asc' | 'desc';
 
@@ -47,6 +59,8 @@ export default function ClientDetailPage() {
   const [showFirmForm, setShowFirmForm] = useState(false);
   const [editingFirm, setEditingFirm] = useState<Firm | null>(null);
   const [deletingFirm, setDeletingFirm] = useState<Firm | null>(null);
+  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
+  const [loadingDeadlines, setLoadingDeadlines] = useState(false);
   const [firmFormData, setFirmFormData] = useState({
     name: '',
     panNumber: '',
@@ -81,11 +95,26 @@ export default function ClientDetailPage() {
       setError(null);
       const response = await api.get(`/clients/${params.id}`);
       setClient(response.data);
+      // Load deadlines after client loads
+      loadDeadlines();
     } catch (error: any) {
       console.error('Failed to load client:', error);
       setError(error.response?.data?.error || 'Failed to load client');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadDeadlines = async () => {
+    try {
+      setLoadingDeadlines(true);
+      const response = await api.get(`/clients/${params.id}/deadlines`);
+      setDeadlines(response.data.deadlines || []);
+    } catch (error: any) {
+      console.error('Failed to load deadlines:', error);
+      setDeadlines([]);
+    } finally {
+      setLoadingDeadlines(false);
     }
   };
 
@@ -558,6 +587,97 @@ export default function ClientDetailPage() {
                   <Plus className="w-4 h-4" />
                   Add Firm
                 </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Upcoming Compliance Deadlines Section */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Upcoming Deadlines</h3>
+                <p className="text-sm text-gray-500">Compliance deadlines for next 90 days</p>
+              </div>
+            </div>
+            <span className="px-3 py-1 bg-orange-100 text-orange-700 text-sm font-medium rounded-full">
+              {deadlines.length} upcoming
+            </span>
+          </div>
+
+          {loadingDeadlines ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="mt-2 text-gray-500">Loading deadlines...</p>
+            </div>
+          ) : deadlines.length === 0 ? (
+            <div className="text-center py-8">
+              <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No upcoming compliance deadlines</p>
+              <p className="text-sm text-gray-400 mt-1">Configure compliance settings for firms to see deadlines</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {deadlines.slice(0, 15).map((deadline) => {
+                const priorityColors: Record<string, string> = {
+                  HIGH: 'bg-red-100 text-red-800 border-red-200',
+                  MEDIUM: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                  LOW: 'bg-green-100 text-green-800 border-green-200',
+                };
+                const isUrgent = deadline.daysUntilDue <= 7;
+
+                return (
+                  <div
+                    key={deadline.id}
+                    className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
+                      isUrgent ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        isUrgent ? 'bg-red-200' : 'bg-gray-200'
+                      }`}>
+                        <Clock className={`w-5 h-5 ${isUrgent ? 'text-red-700' : 'text-gray-600'}`} />
+                      </div>
+                      <div>
+                        <p className={`font-semibold ${isUrgent ? 'text-red-900' : 'text-gray-900'}`}>
+                          {deadline.title}
+                        </p>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <Building2 className="w-3.5 h-3.5" />
+                          <span>{deadline.firmName}</span>
+                          <span className="text-gray-300">•</span>
+                          <span className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs font-medium">
+                            {deadline.type}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-medium ${isUrgent ? 'text-red-700' : 'text-gray-700'}`}>
+                        {format(new Date(deadline.dueDate), 'MMM d, yyyy')}
+                      </p>
+                      <span className={`text-xs font-semibold ${
+                        deadline.daysUntilDue === 0 ? 'text-red-700' :
+                        deadline.daysUntilDue <= 7 ? 'text-red-600' :
+                        deadline.daysUntilDue <= 14 ? 'text-yellow-600' : 'text-gray-500'
+                      }`}>
+                        {deadline.daysUntilDue === 0 ? 'Due today!' :
+                         deadline.daysUntilDue === 1 ? 'Due tomorrow' :
+                         `${deadline.daysUntilDue} days left`}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {deadlines.length > 15 && (
+                <p className="text-center text-sm text-gray-500 pt-2">
+                  + {deadlines.length - 15} more deadlines
+                </p>
               )}
             </div>
           )}

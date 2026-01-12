@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
-import { Building2, Shield, FileText, Calculator, Users, CheckCircle, Lock, Mail, Smartphone, ArrowRight, RefreshCw } from 'lucide-react';
+import { Building2, Shield, FileText, Calculator, Users, CheckCircle, Lock, Mail, Smartphone, ArrowRight, RefreshCw, KeyRound, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { initializeFirebase, setupRecaptcha, sendOTP, ConfirmationResult } from '@/lib/firebase';
 
 type LoginMethod = 'email' | 'otp';
 type OtpStep = 'phone' | 'verify' | 'register';
+type ForgotPasswordStep = 'email' | 'code' | 'success';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,6 +36,13 @@ export default function LoginPage() {
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regRole, setRegRole] = useState<'CA' | 'INDIVIDUAL'>('CA');
+  
+  // Forgot password state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordStep, setForgotPasswordStep] = useState<ForgotPasswordStep>('email');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   
   // Common state
   const [error, setError] = useState('');
@@ -68,6 +76,63 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Forgot password handlers
+  const handleForgotPasswordRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await api.post('/auth/forgot-password', { email });
+      if (response.data.resetCode) {
+        toast.success(`Reset code: ${response.data.resetCode}`, { duration: 10000 });
+      } else {
+        toast.success('Reset code sent to your email!');
+      }
+      setForgotPasswordStep('code');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to send reset code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await api.post('/auth/reset-password', { email, resetCode, newPassword });
+      toast.success('Password reset successfully!');
+      setForgotPasswordStep('success');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForgotPassword = () => {
+    setShowForgotPassword(false);
+    setForgotPasswordStep('email');
+    setResetCode('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setError('');
   };
 
   // OTP handlers
@@ -318,50 +383,205 @@ export default function LoginPage() {
 
             {/* Form Card */}
             <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-8 border border-slate-200">
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">Welcome Back</h2>
-                <p className="text-slate-500">Sign in to access your dashboard</p>
-              </div>
+              {/* Forgot Password Flow */}
+              {showForgotPassword ? (
+                <>
+                  {forgotPasswordStep === 'email' && (
+                    <>
+                      <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <KeyRound className="w-8 h-8 text-primary-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900 mb-2">Forgot Password?</h2>
+                        <p className="text-slate-500">Enter your email to receive a reset code</p>
+                      </div>
 
-              {/* Login Method Toggle */}
-              <div className="flex bg-slate-100 rounded-xl p-1 mb-6">
-                <button
-                  type="button"
-                  onClick={() => { setLoginMethod('email'); setError(''); }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                    loginMethod === 'email' 
-                      ? 'bg-white text-slate-900 shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  <Mail className="w-4 h-4" />
-                  Email
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setLoginMethod('otp'); setError(''); resetOtpFlow(); }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                    loginMethod === 'otp' 
-                      ? 'bg-white text-slate-900 shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  <Smartphone className="w-4 h-4" />
-                  OTP
-                </button>
-              </div>
+                      {error && (
+                        <div className="mb-4 p-4 text-sm text-red-700 bg-red-50 rounded-xl border border-red-200">
+                          {error}
+                        </div>
+                      )}
 
-              {error && (
-                <div className="mb-4 p-4 text-sm text-red-700 bg-red-50 rounded-xl border border-red-200 flex items-center gap-3">
-                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-red-600">!</span>
+                      <form onSubmit={handleForgotPasswordRequest} className="space-y-5">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                              <Mail className="h-5 w-5 text-slate-400" />
+                            </div>
+                            <input
+                              type="email"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              required
+                              placeholder="you@example.com"
+                              className="block w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl shadow-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="w-full py-3.5 px-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-xl hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-500/25"
+                        >
+                          {loading ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <RefreshCw className="w-5 h-5 animate-spin" />
+                              Sending...
+                            </span>
+                          ) : 'Send Reset Code'}
+                        </button>
+                      </form>
+
+                      <div className="mt-6 text-center">
+                        <button onClick={resetForgotPassword} className="text-primary-600 hover:text-primary-700 font-medium">
+                          ← Back to Login
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {forgotPasswordStep === 'code' && (
+                    <>
+                      <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <KeyRound className="w-8 h-8 text-primary-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900 mb-2">Reset Password</h2>
+                        <p className="text-slate-500">Enter the code sent to <span className="font-medium text-slate-700">{email}</span></p>
+                      </div>
+
+                      {error && (
+                        <div className="mb-4 p-4 text-sm text-red-700 bg-red-50 rounded-xl border border-red-200">
+                          {error}
+                        </div>
+                      )}
+
+                      <form onSubmit={handleResetPassword} className="space-y-5">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Reset Code</label>
+                          <input
+                            type="text"
+                            value={resetCode}
+                            onChange={(e) => setResetCode(e.target.value)}
+                            required
+                            placeholder="Enter 6-digit code"
+                            maxLength={6}
+                            className="block w-full px-4 py-3 border border-slate-300 rounded-xl shadow-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-center text-2xl tracking-widest font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">New Password</label>
+                          <input
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            required
+                            placeholder="Enter new password"
+                            minLength={6}
+                            className="block w-full px-4 py-3 border border-slate-300 rounded-xl shadow-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Confirm Password</label>
+                          <input
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            required
+                            placeholder="Confirm new password"
+                            minLength={6}
+                            className="block w-full px-4 py-3 border border-slate-300 rounded-xl shadow-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="w-full py-3.5 px-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-xl hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary-500/25"
+                        >
+                          {loading ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <RefreshCw className="w-5 h-5 animate-spin" />
+                              Resetting...
+                            </span>
+                          ) : 'Reset Password'}
+                        </button>
+                      </form>
+
+                      <div className="mt-6 text-center">
+                        <button onClick={() => setForgotPasswordStep('email')} className="text-slate-500 hover:text-slate-700 font-medium">
+                          ← Use different email
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {forgotPasswordStep === 'success' && (
+                    <div className="text-center py-6">
+                      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Check className="w-10 h-10 text-green-600" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-slate-900 mb-2">Password Reset!</h2>
+                      <p className="text-slate-500 mb-8">Your password has been successfully reset. You can now login with your new password.</p>
+                      <button
+                        onClick={resetForgotPassword}
+                        className="w-full py-3.5 px-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg shadow-primary-500/25"
+                      >
+                        Go to Login
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold text-slate-900 mb-2">Welcome Back</h2>
+                    <p className="text-slate-500">Sign in to access your dashboard</p>
                   </div>
-                  {error}
-                </div>
-              )}
 
-              {/* Email Login Form */}
-              {loginMethod === 'email' && (
+                  {/* Login Method Toggle */}
+                  <div className="flex bg-slate-100 rounded-xl p-1 mb-6">
+                    <button
+                      type="button"
+                      onClick={() => { setLoginMethod('email'); setError(''); }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                        loginMethod === 'email' 
+                          ? 'bg-white text-slate-900 shadow-sm' 
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <Mail className="w-4 h-4" />
+                      Email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setLoginMethod('otp'); setError(''); resetOtpFlow(); }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                        loginMethod === 'otp' 
+                          ? 'bg-white text-slate-900 shadow-sm' 
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      OTP
+                    </button>
+                  </div>
+
+                  {error && (
+                    <div className="mb-4 p-4 text-sm text-red-700 bg-red-50 rounded-xl border border-red-200 flex items-center gap-3">
+                      <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-red-600">!</span>
+                      </div>
+                      {error}
+                    </div>
+                  )}
+
+                  {/* Email Login Form */}
+                  {loginMethod === 'email' && (
                 <form onSubmit={handleEmailLogin} className="space-y-5">
                   <div>
                     <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
@@ -411,6 +631,16 @@ export default function LoginPage() {
                       </span>
                     ) : 'Sign In'}
                   </button>
+
+                  <div className="text-center mt-4">
+                    <button 
+                      type="button"
+                      onClick={() => { setShowForgotPassword(true); setError(''); }}
+                      className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                    >
+                      Forgot your password?
+                    </button>
+                  </div>
                 </form>
               )}
 
@@ -551,6 +781,8 @@ export default function LoginPage() {
                   <Link href="/auth/signup" className="text-primary-600 hover:text-primary-700 font-semibold">Create an account</Link>
                 </p>
               </div>
+                </>
+              )}
             </div>
 
             <div className="mt-8 text-center">

@@ -26,13 +26,32 @@ export default function TasksTabScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [fyFilter, setFyFilter] = useState<string>('ALL');
   const [generatingReminders, setGeneratingReminders] = useState(false);
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDescription, setNewTaskDescription] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState('MEDIUM');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [creatingTask, setCreatingTask] = useState(false);
+  const [firms, setFirms] = useState<Array<{ id: number; name: string }>>([]);
 
   const isIndividual = user?.role === 'INDIVIDUAL';
+
+  // Extract unique FYs from task titles
+  const availableFYs = Array.from(new Set(
+    tasks
+      .map(task => {
+        const match = task.title.match(/FY (\d{4}-\d{2})/);
+        return match ? match[1] : null;
+      })
+      .filter(Boolean) as string[]
+  )).sort().reverse();
 
   useEffect(() => {
     if (isAuthenticated) {
       loadTasks();
+      loadFirms();
     }
   }, [isAuthenticated]);
 
@@ -47,6 +66,54 @@ export default function TasksTabScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const loadFirms = async () => {
+    try {
+      const response = await api.get('/firms');
+      setFirms(response.data || []);
+    } catch (error) {
+      console.error('Failed to load firms:', error);
+    }
+  };
+
+  const handleCreateTask = async () => {
+    if (!newTaskTitle.trim() || !newTaskDueDate) {
+      Alert.alert('Error', 'Please enter a title and due date');
+      return;
+    }
+
+    try {
+      setCreatingTask(true);
+      
+      // Find the personal firm for individual user
+      const personalFirm = firms.find(f => f.name === 'Personal') || firms[0];
+      if (!personalFirm) {
+        Alert.alert('Error', 'No firm found. Please try again later.');
+        return;
+      }
+
+      await api.post('/tasks', {
+        firmId: personalFirm.id,
+        title: newTaskTitle,
+        description: newTaskDescription,
+        priority: newTaskPriority,
+        dueDate: newTaskDueDate,
+        assignedToId: user?.id,
+      });
+
+      Alert.alert('Success', 'Task created successfully!');
+      setShowAddTask(false);
+      setNewTaskTitle('');
+      setNewTaskDescription('');
+      setNewTaskPriority('MEDIUM');
+      setNewTaskDueDate('');
+      loadTasks();
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to create task');
+    } finally {
+      setCreatingTask(false);
     }
   };
 
@@ -73,7 +140,8 @@ export default function TasksTabScreen() {
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || task.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesFY = fyFilter === 'ALL' || task.title.includes(`FY ${fyFilter}`);
+    return matchesSearch && matchesStatus && matchesFY;
   });
 
   const statusOptions = ['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED'];
@@ -94,26 +162,34 @@ export default function TasksTabScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <View>
+          <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>{isIndividual ? 'My Reminders' : 'Tasks'}</Text>
-            <Text style={styles.headerSubtitle}>
+            <Text style={styles.headerSubtitle} numberOfLines={1}>
               {isIndividual 
-                ? 'Tax deadlines & compliance reminders' 
+                ? 'Tax deadlines & compliance' 
                 : `${filteredTasks.length} tasks`}
             </Text>
           </View>
           {isIndividual ? (
-            <TouchableOpacity
-              style={[styles.generateButton, generatingReminders && styles.generateButtonDisabled]}
-              onPress={() => generateReminders(false)}
-              disabled={generatingReminders}
-            >
-              {generatingReminders ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <Text style={styles.generateButtonText}>✨ Generate</Text>
-              )}
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={styles.addTaskButton}
+                onPress={() => setShowAddTask(true)}
+              >
+                <Text style={styles.addTaskButtonText}>+</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.generateButton, generatingReminders && styles.generateButtonDisabled]}
+                onPress={() => generateReminders(false)}
+                disabled={generatingReminders}
+              >
+                {generatingReminders ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.generateButtonText}>✨ Generate</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           ) : (
             <TouchableOpacity
               style={styles.addButton}
@@ -135,6 +211,45 @@ export default function TasksTabScreen() {
           onChangeText={setSearchQuery}
         />
       </View>
+
+      {/* FY Filter for Individuals */}
+      {isIndividual && availableFYs.length > 0 && (
+        <View style={styles.filterContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                fyFilter === 'ALL' && styles.filterButtonActive
+              ]}
+              onPress={() => setFyFilter('ALL')}
+            >
+              <Text style={[
+                styles.filterButtonText,
+                fyFilter === 'ALL' && styles.filterButtonTextActive
+              ]}>
+                All Years
+              </Text>
+            </TouchableOpacity>
+            {availableFYs.map((fy) => (
+              <TouchableOpacity
+                key={fy}
+                style={[
+                  styles.filterButton,
+                  fyFilter === fy && styles.filterButtonActive
+                ]}
+                onPress={() => setFyFilter(fy)}
+              >
+                <Text style={[
+                  styles.filterButtonText,
+                  fyFilter === fy && styles.filterButtonTextActive
+                ]}>
+                  FY {fy}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Status Filter - Only for CA/MANAGER/STAFF */}
       {!isIndividual && (
@@ -158,6 +273,78 @@ export default function TasksTabScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+        </View>
+      )}
+
+      {/* Add Task Form for Individuals */}
+      {showAddTask && isIndividual && (
+        <View style={styles.addTaskForm}>
+          <View style={styles.addTaskHeader}>
+            <Text style={styles.addTaskTitle}>Add Custom Task</Text>
+            <TouchableOpacity onPress={() => setShowAddTask(false)}>
+              <Text style={styles.addTaskClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <TextInput
+            style={styles.addTaskInput}
+            placeholder="Task title *"
+            placeholderTextColor="#94a3b8"
+            value={newTaskTitle}
+            onChangeText={setNewTaskTitle}
+          />
+          <TextInput
+            style={styles.addTaskInput}
+            placeholder="Description (optional)"
+            placeholderTextColor="#94a3b8"
+            value={newTaskDescription}
+            onChangeText={setNewTaskDescription}
+          />
+          <TextInput
+            style={styles.addTaskInput}
+            placeholder="Due date (YYYY-MM-DD) *"
+            placeholderTextColor="#94a3b8"
+            value={newTaskDueDate}
+            onChangeText={setNewTaskDueDate}
+          />
+          <View style={styles.priorityRow}>
+            <Text style={styles.priorityLabel}>Priority:</Text>
+            {['LOW', 'MEDIUM', 'HIGH'].map((p) => (
+              <TouchableOpacity
+                key={p}
+                style={[
+                  styles.priorityOption,
+                  newTaskPriority === p && styles.priorityOptionActive
+                ]}
+                onPress={() => setNewTaskPriority(p)}
+              >
+                <Text style={[
+                  styles.priorityOptionText,
+                  newTaskPriority === p && styles.priorityOptionTextActive
+                ]}>
+                  {p}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.addTaskButtons}>
+            <TouchableOpacity
+              style={styles.addTaskCancel}
+              onPress={() => setShowAddTask(false)}
+            >
+              <Text style={styles.addTaskCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.addTaskSubmit, creatingTask && styles.generateButtonDisabled]}
+              onPress={handleCreateTask}
+              disabled={creatingTask}
+            >
+              {creatingTask ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.addTaskSubmitText}>Create Task</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -288,14 +475,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#ffffff' },
-  headerSubtitle: { fontSize: 14, color: '#94a3b8', marginTop: 4 },
+  headerTitleContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    flexShrink: 0,
+  },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
+  headerSubtitle: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
   generateButton: {
     backgroundColor: '#0ea5e9',
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
-    minWidth: 100,
     alignItems: 'center',
   },
   generateButtonDisabled: {
@@ -316,6 +511,113 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
     fontSize: 14,
+  },
+  addTaskButton: {
+    backgroundColor: '#334155',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    width: 40,
+    alignItems: 'center',
+  },
+  addTaskButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 18,
+  },
+  addTaskForm: {
+    backgroundColor: '#ffffff',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addTaskHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addTaskTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  addTaskClose: {
+    fontSize: 20,
+    color: '#94a3b8',
+    padding: 4,
+  },
+  addTaskInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+    color: '#0f172a',
+  },
+  priorityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  priorityLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginRight: 8,
+  },
+  priorityOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+  },
+  priorityOptionActive: {
+    backgroundColor: '#0ea5e9',
+    borderColor: '#0ea5e9',
+  },
+  priorityOptionText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  priorityOptionTextActive: {
+    color: '#ffffff',
+  },
+  addTaskButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  addTaskCancel: {
+    flex: 1,
+    backgroundColor: '#e2e8f0',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  addTaskCancelText: {
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  addTaskSubmit: {
+    flex: 1,
+    backgroundColor: '#10b981',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  addTaskSubmitText: {
+    color: '#ffffff',
+    fontWeight: '600',
   },
   searchContainer: {
     backgroundColor: '#0f172a',

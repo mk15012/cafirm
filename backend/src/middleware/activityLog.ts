@@ -9,15 +9,18 @@ export async function logActivityMiddleware(
   next: NextFunction
 ) {
   const originalSend = res.send;
-  const user = (req as AuthRequest).user;
 
   res.send = function (body: any) {
-    // Log after response is sent
+    // Get user AFTER auth middleware has run (inside res.send, not before)
+    const user = (req as AuthRequest).user;
+    
+    // Log after response is sent (only for non-GET requests with authenticated user)
     if (user && req.method !== 'GET') {
       const actionType = getActionType(req.method);
       const entityType = getEntityType(req.path);
       const entityId = extractEntityId(req.path) || 'unknown';
 
+      // Create activity log asynchronously (don't block response)
       prisma.activityLog
         .create({
           data: {
@@ -30,7 +33,12 @@ export async function logActivityMiddleware(
             metadata: JSON.stringify({ path: req.path, method: req.method }),
           },
         })
-        .catch(console.error);
+        .then(() => {
+          console.log(`Activity logged: ${actionType} ${entityType} by user ${user.userId}`);
+        })
+        .catch((error) => {
+          console.error('Failed to log activity:', error);
+        });
     }
 
     return originalSend.call(this, body);

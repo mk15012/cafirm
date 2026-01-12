@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '@/components/ui/ConfirmModal';
+import UpgradeModal from '@/components/UpgradeModal';
 
 interface Credential {
   id: number;
@@ -89,6 +90,17 @@ export default function CredentialsPage() {
     remarks: '',
   });
 
+  // Subscription limit checking
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{
+    currentUsage: number;
+    limit: number;
+    plan: string;
+    canAdd: boolean;
+  } | null>(null);
+
+  const isCA = user?.role === 'CA';
+
   // Filter firms based on selected client
   const filteredFirms = useMemo(() => {
     if (!selectedClientId) return [];
@@ -143,6 +155,36 @@ export default function CredentialsPage() {
   useEffect(() => {
     initializeAuth();
   }, []);
+
+  // Load subscription limits
+  useEffect(() => {
+    if (isAuthenticated && isCA) {
+      checkCredentialLimit();
+    }
+  }, [isAuthenticated, isCA]);
+
+  const checkCredentialLimit = async () => {
+    try {
+      const response = await api.get('/subscription/check/credentials');
+      setSubscriptionInfo({
+        currentUsage: response.data.currentUsage,
+        limit: response.data.limit === 'Unlimited' ? -1 : response.data.limit,
+        plan: response.data.currentPlan,
+        canAdd: response.data.canProceed,
+      });
+    } catch (error) {
+      console.error('Failed to check subscription limit:', error);
+      setSubscriptionInfo({ currentUsage: 0, limit: -1, plan: 'FREE', canAdd: true });
+    }
+  };
+
+  const handleAddCredentialClick = () => {
+    if (subscriptionInfo && !subscriptionInfo.canAdd) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    setShowForm(true);
+  };
 
   useEffect(() => {
     if (!isLoading) {
@@ -276,6 +318,12 @@ export default function CredentialsPage() {
 
   // Open form with auto-selection for INDIVIDUAL users
   const openAddForm = () => {
+    // Check subscription limit first (for CA users)
+    if (isCA && subscriptionInfo && !subscriptionInfo.canAdd) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     if (isIndividual && clients.length > 0) {
       // Auto-select the first (personal) client for INDIVIDUAL users
       const personalClient = clients[0];
@@ -700,6 +748,16 @@ export default function CredentialsPage() {
         confirmText="Yes, Delete"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      {/* Upgrade Modal - Shows when credential limit is reached */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        resource="credentials"
+        currentUsage={subscriptionInfo?.currentUsage || 0}
+        limit={subscriptionInfo?.limit === -1 ? 999 : (subscriptionInfo?.limit || 50)}
+        currentPlan={subscriptionInfo?.plan || 'FREE'}
       />
     </AppLayout>
   );

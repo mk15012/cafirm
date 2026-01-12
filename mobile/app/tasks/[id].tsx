@@ -65,7 +65,8 @@ export default function TaskDetailScreen() {
 
   const isCA = user?.role === 'CA';
   const isManager = user?.role === 'MANAGER';
-  const canEdit = isCA || isManager;
+  const isIndividual = user?.role === 'INDIVIDUAL';
+  const canEdit = isCA || isManager || isIndividual;
 
   useEffect(() => {
     if (isAuthenticated && params.id) {

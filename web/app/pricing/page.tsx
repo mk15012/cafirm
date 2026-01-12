@@ -81,14 +81,14 @@ export default function PricingPage() {
         {
           id: 'FREE',
           name: 'Starter',
-          description: 'Perfect for trying out CA Firm Pro',
+          description: 'Try out the platform with limited features',
           monthlyPrice: '₹0',
           yearlyPrice: '₹0',
           monthlyPricePaise: 0,
           yearlyPricePaise: 0,
           popular: false,
-          limits: { clients: 10, firmsPerClient: 10, users: 2, storage: '512 MB', credentials: 20 },
-          features: { taxCalculator: true, approvalWorkflow: false, activityLogs: false, documentManagement: true, invoiceManagement: true, meetings: false, customBranding: false, apiAccess: false, prioritySupport: false },
+          limits: { clients: 3, firmsPerClient: 3, users: 1, storage: '100 MB', credentials: 10 },
+          features: { taxCalculator: true, approvalWorkflow: false, activityLogs: false, documentManagement: true, invoiceManagement: false, meetings: false, customBranding: false, apiAccess: false, prioritySupport: false },
         },
         {
           id: 'BASIC',
@@ -99,7 +99,7 @@ export default function PricingPage() {
           monthlyPricePaise: 49900,
           yearlyPricePaise: 499900,
           popular: false,
-          limits: { clients: 50, firmsPerClient: 50, users: 5, storage: '5 GB', credentials: 100 },
+          limits: { clients: 25, firmsPerClient: 25, users: 3, storage: '2 GB', credentials: 50 },
           features: { taxCalculator: true, approvalWorkflow: true, activityLogs: false, documentManagement: true, invoiceManagement: true, meetings: true, customBranding: false, apiAccess: false, prioritySupport: false },
         },
         {
@@ -111,7 +111,7 @@ export default function PricingPage() {
           monthlyPricePaise: 99900,
           yearlyPricePaise: 999900,
           popular: true,
-          limits: { clients: 200, firmsPerClient: 200, users: 15, storage: '20 GB', credentials: 400 },
+          limits: { clients: 100, firmsPerClient: 100, users: 10, storage: '10 GB', credentials: 200 },
           features: { taxCalculator: true, approvalWorkflow: true, activityLogs: true, documentManagement: true, invoiceManagement: true, meetings: true, customBranding: true, apiAccess: false, prioritySupport: true },
         },
         {

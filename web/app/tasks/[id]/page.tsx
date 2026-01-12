@@ -19,7 +19,8 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Edit
+  Edit,
+  Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -67,15 +68,23 @@ interface Task {
 export default function TaskDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, isLoading, initializeAuth } = useAuthStore();
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
+    initializeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return; // Wait for auth to initialize
+    
     if (!isAuthenticated) {
       router.push('/auth/login');
       return;
@@ -86,7 +95,7 @@ export default function TaskDetailPage() {
       setError('Task ID is missing');
       setLoading(false);
     }
-  }, [params.id, isAuthenticated, router]);
+  }, [params.id, isAuthenticated, isLoading, router]);
 
   const loadTask = async () => {
     if (!params.id) {
@@ -195,7 +204,27 @@ export default function TaskDetailPage() {
     return task.assignedTo.id === user.id || user.role === 'CA' || user.role === 'MANAGER';
   };
 
-  if (loading) {
+  const canEditTask = () => {
+    if (!task || !user) return false;
+    // CA, Manager, or Individual can edit/delete their own tasks
+    return user.role === 'CA' || user.role === 'MANAGER' || user.role === 'INDIVIDUAL';
+  };
+
+  const handleDeleteTask = async () => {
+    try {
+      setDeleting(true);
+      await api.delete(`/tasks/${params.id}`);
+      toast.success('Task deleted successfully');
+      router.push('/tasks');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to delete task');
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  if (isLoading || loading) {
     return (
       <AppLayout title="Task Details">
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -289,8 +318,8 @@ export default function TaskDetailPage() {
               </div>
             </div>
           </div>
-          {canUpdateStatus() && (
-            <div className="flex gap-2">
+          <div className="flex gap-2">
+            {canUpdateStatus() && (
               <select
                 value={task.status}
                 onChange={(e) => handleStatusChangeRequest(e.target.value)}
@@ -303,8 +332,17 @@ export default function TaskDetailPage() {
                 <option value="COMPLETED">Completed</option>
                 <option value="ERROR">Error</option>
               </select>
-            </div>
-          )}
+            )}
+            {canEditTask() && (
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            )}
+          </div>
 
           {/* Status Change Confirmation Modal */}
           {pendingStatus && (
@@ -323,6 +361,19 @@ export default function TaskDetailPage() {
               loading={updatingStatus}
             />
           )}
+
+          {/* Delete Confirmation Modal */}
+          <ConfirmModal
+            isOpen={showDeleteModal}
+            onClose={() => setShowDeleteModal(false)}
+            onConfirm={handleDeleteTask}
+            title="Delete Task?"
+            message={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
+            confirmText="Yes, Delete Task"
+            cancelText="Cancel"
+            variant="danger"
+            loading={deleting}
+          />
         </div>
       </div>
 

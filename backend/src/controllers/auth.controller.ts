@@ -4,6 +4,7 @@ import { hashPassword, comparePassword } from '../utils/bcrypt';
 import { generateToken } from '../utils/jwt';
 import { AuthRequest } from '../types';
 import { generateTaxDeadlineTasks, getCurrentFinancialYear } from '../utils/taxDeadlines';
+import { sendPasswordResetEmail, isEmailConfigured } from '../utils/email';
 
 export async function login(req: Request, res: Response) {
   try {
@@ -287,6 +288,108 @@ export async function changePassword(req: Request, res: Response) {
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     console.error('Change password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// In-memory store for password reset tokens (in production, use Redis or DB)
+const resetTokens: Map<string, { email: string; token: string; expiresAt: Date }> = new Map();
+
+export async function forgotPassword(req: Request, res: Response) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) {
+      // In development, tell user the email doesn't exist (helpful for testing)
+      // In production, don't reveal if user exists or not (security)
+      if (!isEmailConfigured()) {
+        return res.status(404).json({ error: 'No account found with this email address' });
+      }
+      // For production: generic message to prevent email enumeration
+      return res.json({ message: 'If an account exists with this email, a reset code has been sent.' });
+    }
+
+    // Generate 6-digit reset code
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Store the reset token
+    resetTokens.set(email.toLowerCase(), {
+      email: email.toLowerCase(),
+      token: resetCode,
+      expiresAt,
+    });
+
+    // Send password reset email
+    const emailSent = await sendPasswordResetEmail(email, resetCode, user.name);
+    
+    if (emailSent) {
+      console.log(`✅ Password reset email sent to ${email}`);
+    } else {
+      console.log(`🔐 Password reset code for ${email}: ${resetCode}`);
+    }
+
+    res.json({ 
+      message: 'If an account exists with this email, a reset code has been sent.',
+      // In development without email configured, show the code for testing
+      ...(!isEmailConfigured() && { resetCode }),
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  try {
+    const { email, resetCode, newPassword } = req.body;
+
+    if (!email || !resetCode || !newPassword) {
+      return res.status(400).json({ error: 'Email, reset code, and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    // Get and validate reset token
+    const storedToken = resetTokens.get(email.toLowerCase());
+
+    if (!storedToken) {
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
+    }
+
+    if (storedToken.token !== resetCode) {
+      return res.status(400).json({ error: 'Invalid reset code' });
+    }
+
+    if (new Date() > storedToken.expiresAt) {
+      resetTokens.delete(email.toLowerCase());
+      return res.status(400).json({ error: 'Reset code has expired. Please request a new one.' });
+    }
+
+    // Update password
+    const hashedPassword = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { email: email.toLowerCase() },
+      data: { password: hashedPassword },
+    });
+
+    // Remove used token
+    resetTokens.delete(email.toLowerCase());
+
+    res.json({ message: 'Password reset successfully. You can now login with your new password.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

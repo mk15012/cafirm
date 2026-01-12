@@ -47,7 +47,12 @@ export async function getRevenueAnalytics(req: Request, res: Response) {
     // Calculate monthly revenue
     const monthlyRevenue: Record<string, { total: number; paid: number; pending: number }> = {};
     
-    // Initialize all 12 months of the selected year
+    // Show all 12 months of the year
+    const now = new Date();
+    const isCurrentYear = year === now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    
+    // Initialize all 12 months
     for (let i = 0; i < 12; i++) {
       const key = `${year}-${String(i + 1).padStart(2, '0')}`;
       monthlyRevenue[key] = { total: 0, paid: 0, pending: 0 };
@@ -76,12 +81,10 @@ export async function getRevenueAnalytics(req: Request, res: Response) {
     const pendingRevenue = totalRevenue - paidRevenue;
 
     // For current year: show current month stats. For past years: show December stats
-    const now = new Date();
-    const isCurrentYear = year === now.getFullYear();
     const referenceMonth = isCurrentYear ? now.getMonth() + 1 : 12;
     
-    const currentMonth = `${year}-${String(referenceMonth).padStart(2, '0')}`;
-    const currentMonthRevenue = monthlyRevenue[currentMonth]?.total || 0;
+    const currentMonthKey = `${year}-${String(referenceMonth).padStart(2, '0')}`;
+    const currentMonthRevenue = monthlyRevenue[currentMonthKey]?.total || 0;
 
     // Calculate previous month for comparison
     const prevMonthNum = referenceMonth > 1 ? referenceMonth - 1 : 12;
@@ -173,13 +176,16 @@ export async function getTaskAnalytics(req: Request, res: Response) {
     // Monthly task completion
     const monthlyTasks: Record<string, { created: number; completed: number }> = {};
     
-    // Initialize all 12 months of the selected year
+    // Show all 12 months of the year
+    const now = new Date();
+    const isCurrentYear = year === now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    
+    // Initialize all 12 months
     for (let i = 0; i < 12; i++) {
       const key = `${year}-${String(i + 1).padStart(2, '0')}`;
       monthlyTasks[key] = { created: 0, completed: 0 };
     }
-    
-    const now = new Date();
 
     // Staff performance
     const staffPerformance: Record<number, { name: string; assigned: number; completed: number }> = {};
@@ -306,7 +312,12 @@ export async function getClientAnalytics(req: Request, res: Response) {
 
     const monthlyClients: Record<string, number> = {};
     
-    // Initialize all 12 months of the selected year
+    // Show all 12 months of the year
+    const now = new Date();
+    const isCurrentYear = year === now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    
+    // Initialize all 12 months
     for (let i = 0; i < 12; i++) {
       const key = `${year}-${String(i + 1).padStart(2, '0')}`;
       monthlyClients[key] = 0;
@@ -323,12 +334,22 @@ export async function getClientAnalytics(req: Request, res: Response) {
       }
     });
 
-    // Calculate cumulative growth
+    // Calculate cumulative growth - but only cumulate up to current month for current year
+    // Future months should show 0 (not yet happened)
     let cumulative = clients.filter(c => new Date(c.createdAt) < startDate).length;
-    const cumulativeGrowth = Object.entries(monthlyClients).map(([month, newClients]) => {
-      cumulative += newClients;
-      return { month, newClients, total: cumulative };
-    });
+    const cumulativeGrowth = Object.entries(monthlyClients)
+      .sort(([a], [b]) => a.localeCompare(b)) // Ensure chronological order
+      .map(([month, newClients]) => {
+        const monthNum = parseInt(month.split('-')[1]);
+        
+        // For current year: only show cumulative up to current month, future months are 0
+        if (isCurrentYear && monthNum > currentMonth) {
+          return { month, newClients: 0, total: 0 };
+        }
+        
+        cumulative += newClients;
+        return { month, newClients, total: cumulative };
+      });
 
     // Top clients by revenue
     const clientRevenue = await Promise.all(

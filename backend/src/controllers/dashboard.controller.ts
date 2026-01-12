@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { getDashboardMetrics } from '../services/dashboard.service';
 import { prisma } from '../utils/prisma';
 import { AuthRequest } from '../types';
+import { getComplianceCalendarForMonth } from '../utils/complianceRules';
+import { getRootCAId, getCAOrganizationUserIds } from '../utils/caOrganization';
 
 export async function getMetrics(req: Request, res: Response) {
   try {
@@ -159,9 +161,9 @@ export async function getUpcomingDeadlines(req: Request, res: Response) {
       },
     });
 
-    // Transform to deadline format
-    const deadlines = tasks.map(task => ({
-      id: task.id,
+    // Transform tasks to deadline format
+    const taskDeadlines = tasks.map(task => ({
+      id: String(task.id),
       title: task.title,
       type: 'Task',
       firm: task.firm.name,
@@ -170,7 +172,74 @@ export async function getUpcomingDeadlines(req: Request, res: Response) {
       priority: task.priority,
     }));
 
-    res.json(deadlines);
+    // Get compliance calendar deadlines for the next 30 days
+    let complianceDeadlines: any[] = [];
+    try {
+      // Get the CA ID for this user's organization
+      const caId = await getRootCAId(user.userId);
+      if (caId) {
+        const orgUserIds = await getCAOrganizationUserIds(caId);
+        
+        // Get all firms in the organization with compliance flags
+        const firms = await prisma.firm.findMany({
+          where: {
+            createdById: { in: orgUserIds },
+          },
+          select: {
+            id: true,
+            name: true,
+            client: {
+              select: { name: true },
+            },
+            hasGST: true,
+            gstFrequency: true,
+            hasTDS: true,
+            hasITR: true,
+            itrDueDate: true,
+            hasTaxAudit: true,
+            hasAdvanceTax: true,
+            hasROC: true,
+          },
+        });
+
+        const currentMonth = now.getMonth() + 1;
+        const currentYear = now.getFullYear();
+        const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
+        const nextMonthYear = currentMonth === 12 ? currentYear + 1 : currentYear;
+
+        // Get items for current and next month
+        const currentMonthItems = getComplianceCalendarForMonth(firms, currentYear, currentMonth);
+        const nextMonthItems = getComplianceCalendarForMonth(firms, nextMonthYear, nextMonth);
+
+        const allComplianceItems = [...currentMonthItems, ...nextMonthItems];
+
+        // Filter to next 30 days
+        const upcomingComplianceItems = allComplianceItems.filter(item => 
+          item.dueDate >= now && item.dueDate <= futureDate
+        );
+
+        // Transform to deadline format
+        complianceDeadlines = upcomingComplianceItems.map(item => ({
+          id: `compliance-${item.firmId}-${item.type}-${item.dueDate.toISOString()}`,
+          title: item.description,
+          type: item.type,
+          firm: item.firmName,
+          client: item.clientName,
+          dueDate: item.dueDate,
+          priority: item.dueDate <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) ? 'HIGH' : 'MEDIUM',
+        }));
+      }
+    } catch (complianceError) {
+      console.error('Error fetching compliance deadlines:', complianceError);
+      // Continue with just task deadlines if compliance fails
+    }
+
+    // Merge and sort by due date
+    const allDeadlines = [...taskDeadlines, ...complianceDeadlines]
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+      .slice(0, 10); // Limit to 10 items
+
+    res.json(allDeadlines);
   } catch (error) {
     console.error('Get upcoming deadlines error:', error);
     res.status(500).json({ error: 'Internal server error' });

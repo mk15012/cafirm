@@ -36,6 +36,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^7.0.12",
     "razorpay": "^2.9.6",
     "ts-node": "^10.9.2"
   },
@@ -46,6 +47,7 @@
     "@types/jsonwebtoken": "^9.0.5",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.10.5",
+    "@types/nodemailer": "^7.0.5",
     "mysql2": "^3.16.0",
     "prisma": "^5.22.0",
     "tsx": "^4.7.0",
