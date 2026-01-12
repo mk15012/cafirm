@@ -77,7 +77,7 @@ const getAvailableYears = () => {
 
 export default function ReportsPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading } = useAuthStore();
+  const { user, isAuthenticated, isLoading, initializeAuth } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'revenue' | 'tasks' | 'clients'>('revenue');
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -87,6 +87,10 @@ export default function ReportsPage() {
   const [clientData, setClientData] = useState<ClientData | null>(null);
 
   const availableYears = getAvailableYears();
+
+  useEffect(() => {
+    initializeAuth();
+  }, []);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

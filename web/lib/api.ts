@@ -23,8 +23,16 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/auth/login';
+      // Don't redirect if already on auth pages (login, signup, forgot-password)
+      // or if it's a login/signup request that failed
+      const isAuthPage = window.location.pathname.startsWith('/auth');
+      const isAuthRequest = error.config?.url?.includes('/auth/');
+      
+      if (!isAuthPage && !isAuthRequest) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/auth/login';
+      }
     }
     return Promise.reject(error);
   }
