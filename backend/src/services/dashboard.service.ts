@@ -126,28 +126,37 @@ export async function getDashboardMetrics(userId: number, userRole: UserRole): P
 
   const documentsChange = documents - documentsLastMonth;
 
-  // Active Clients (only clients created by organization)
+  // Active Clients (all clients created by organization)
+  // For CA: count all clients
+  // For Manager/Staff: count clients that have at least one accessible firm
   const activeClients = await prisma.client.count({
-    where: {
-      createdById: { in: orgUserIds },
-      firms: {
-        some: {
-          id: { in: accessibleFirmIds },
+    where: userRole === 'CA' 
+      ? { createdById: { in: orgUserIds } }
+      : {
+          createdById: { in: orgUserIds },
+          firms: {
+            some: {
+              id: { in: accessibleFirmIds },
+            },
+          },
         },
-      },
-    },
   });
 
   const activeClientsLastMonth = await prisma.client.count({
-    where: {
-      createdById: { in: orgUserIds },
-      firms: {
-        some: {
-          id: { in: accessibleFirmIds },
+    where: userRole === 'CA'
+      ? { 
+          createdById: { in: orgUserIds },
+          createdAt: { lte: endOfLastMonth },
+        }
+      : {
+          createdById: { in: orgUserIds },
+          firms: {
+            some: {
+              id: { in: accessibleFirmIds },
+            },
+          },
+          createdAt: { lte: endOfLastMonth },
         },
-      },
-      createdAt: { lte: endOfLastMonth },
-    },
   });
 
   const activeClientsChange = activeClients - activeClientsLastMonth;

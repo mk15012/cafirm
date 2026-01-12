@@ -118,17 +118,42 @@ export default function CredentialsScreen() {
     return grouped;
   }, [filteredCredentials]);
 
-  const isIndividual = user?.role === 'INDIVIDUAL';
   const canAccess = user?.role === 'CA' || user?.role === 'INDIVIDUAL';
 
   useEffect(() => {
     if (isAuthenticated && canAccess) {
       loadData();
+      if (isCA || isIndividual) {
+        checkCredentialLimit();
+      }
     } else if (isAuthenticated && !canAccess) {
       router.replace('/dashboard');
       Alert.alert('Access Denied', 'You do not have access to credentials');
     }
   }, [isAuthenticated, user]);
+
+  const checkCredentialLimit = async () => {
+    try {
+      const response = await api.get('/subscription/check/credentials');
+      setSubscriptionInfo({
+        currentUsage: response.data.currentUsage,
+        limit: response.data.limit === 'Unlimited' ? -1 : response.data.limit,
+        plan: response.data.currentPlan,
+        canAdd: response.data.canProceed,
+      });
+    } catch (error) {
+      console.error('Failed to check subscription limit:', error);
+      setSubscriptionInfo({ currentUsage: 0, limit: -1, plan: 'FREE', canAdd: true });
+    }
+  };
+
+  const handleAddCredentialClick = () => {
+    if (subscriptionInfo && !subscriptionInfo.canAdd) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    setShowAddModal(true);
+  };
 
   const loadData = async () => {
     try {
@@ -231,6 +256,12 @@ export default function CredentialsScreen() {
   };
 
   const handleOpenAddModal = () => {
+    // Check subscription limit first
+    if (subscriptionInfo && !subscriptionInfo.canAdd) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     // For INDIVIDUAL users, auto-select their personal client and firm
     if (isIndividual && clients.length > 0) {
       const personalClient = clients.find(c => c.name.includes('Personal Finances'));
@@ -498,6 +529,16 @@ export default function CredentialsScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* Upgrade Modal */}
+        <UpgradeModal
+          visible={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          resource="credentials"
+          currentUsage={subscriptionInfo?.currentUsage || 0}
+          limit={subscriptionInfo?.limit === -1 ? 999 : subscriptionInfo?.limit || 0}
+          currentPlan={subscriptionInfo?.plan || 'FREE'}
+        />
       </View>
     </SafeAreaView>
   );
