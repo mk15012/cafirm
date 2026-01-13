@@ -38,6 +38,8 @@ app.use(cors({
     // Production URLs
     'https://cafirm.vercel.app',
     'https://cafirmpro.vercel.app',
+    'https://www.cafirmpro.in',
+    'https://cafirmpro.in',
     /\.vercel\.app$/,  // Allow all Vercel preview deployments
   ].filter(Boolean),
   credentials: true,
