@@ -391,9 +391,10 @@ export async function getClientDeadlines(req: Request, res: Response) {
 
     // Transform to a cleaner format
     const deadlines = futureDeadlines.map(item => ({
-      id: `${item.firmId}-${item.type}-${item.dueDate.toISOString()}`,
-      title: item.description,
-      type: item.type,
+      id: `${item.firmId}-${item.code}-${item.dueDate.toISOString()}`,
+      title: item.name, // Use 'name' instead of 'description'
+      type: item.category, // Use 'category' instead of 'type'
+      code: item.code, // Include code for more detail
       firmId: item.firmId,
       firmName: item.firmName,
       dueDate: item.dueDate,

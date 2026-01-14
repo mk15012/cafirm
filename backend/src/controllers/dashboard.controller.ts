@@ -220,9 +220,10 @@ export async function getUpcomingDeadlines(req: Request, res: Response) {
 
         // Transform to deadline format
         complianceDeadlines = upcomingComplianceItems.map(item => ({
-          id: `compliance-${item.firmId}-${item.type}-${item.dueDate.toISOString()}`,
-          title: item.description,
-          type: item.type,
+          id: `compliance-${item.firmId}-${item.code}-${item.dueDate.toISOString()}`,
+          title: item.name, // Use 'name' instead of 'description'
+          type: item.category, // Use 'category' instead of 'type'
+          code: item.code, // Include code for more detail
           firm: item.firmName,
           client: item.clientName,
           dueDate: item.dueDate,
